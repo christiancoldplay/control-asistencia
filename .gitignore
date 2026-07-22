@@ -3,6 +3,7 @@
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+public/js/config.js
 
 # Variables de entorno (Seguridad)
 .env
