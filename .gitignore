@@ -33,3 +33,6 @@ ehthumbs.db
 dist/
 build/
 out/
+
+#plan de desarrollo
+plan_desarrollo.md
