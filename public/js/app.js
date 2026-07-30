@@ -14,7 +14,7 @@ const storage = firebase.storage();
 // CONFIGURACION DE FIRESTORE
 // =========================================
 
-// Habilitar offline persistence (para que funcione sin internet)
+// Habilitar offline persistence (permite que la app funcione sin internet)
 db.enablePersistence()
     .catch((err) => {
         console.warn('Firestore persistence error:', err.code);
@@ -31,7 +31,7 @@ let currentUser = null;
 // OBSERVADOR DE AUTENTICACIÓN
 // ============================================
 
-// Escuchar cambios en el estado de autenticación
+// Escuchar cambios en el estado de autenticacion (login/logout) en tiempo real.
 auth.onAuthStateChanged((user) => {
     if (user) {
         // Usuario logueado
@@ -52,7 +52,7 @@ auth.onAuthStateChanged((user) => {
 });
 
 // ==========================================================
-// FUNCIONES DE AUTENTICACIÓN (para usar en otros archivos)
+// FUNCIONES DE AUTENTICACIÓN (funciones reutilizables para usar desde otros archivos)
 // ==========================================================
 
 // Función de login

@@ -1,0 +1,227 @@
+/* ============================================
+   ESTILOS GLOBALES Y VARIABLES
+   ============================================ */
+:root {
+    --color-primary: #1a3a5c;      /* Azul oscuro */
+    --color-secondary: #2b6cb0;    /* Azul medio */
+    --color-bg: #f0f4f8;           /* Fondo gris claro */
+    --color-white: #ffffff;
+    --color-text: #2d3748;
+    --color-text-light: #4a5568;
+    --color-error: #e53e3e;
+    --color-border: #e2e8f0;
+    --shadow: 0 2px 8px rgba(0,0,0,0.1);
+    --radius: 8px;
+    --font: 'Segoe UI', Arial, sans-serif;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font);
+    background: var(--color-bg);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+/* ============================================
+   CONTENEDOR DE LOGIN
+   ============================================ */
+.login-container {
+    width: 100%;
+    max-width: 400px;
+}
+
+.login-card {
+    background: var(--color-white);
+    border-radius: var(--radius);
+    padding: 35px 30px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--color-border);
+}
+
+/* ============================================
+   HEADER DEL LOGIN
+   ============================================ */
+.login-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 15px;
+}
+
+.main-logo {
+    width: 100%;
+    max-width: 220px; /* Puedes subir o bajar este número si lo quieres más grande o pequeño */
+    height: auto;     /* Esto evita que se deforme */
+    object-fit: contain;
+}
+
+.brand-subtitle {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text-light);
+    margin-top: 2px;
+}
+
+/* ============================================
+   FORMULARIO
+   ============================================ */
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.form-group label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.form-group input {
+    width: 100%;
+    padding: 10px 14px;
+    font-size: 15px;
+    font-family: var(--font);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    outline: none;
+    background: var(--color-white);
+    transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+    border-color: var(--color-secondary);
+}
+
+/* ============================================
+   BOTÓN PRINCIPAL
+   ============================================ */
+.btn-primary {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: var(--font);
+    color: var(--color-white);
+    background: var(--color-secondary);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-top: 5px;
+}
+
+.btn-primary:hover {
+    background: var(--color-primary);
+}
+
+.btn-primary:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* ============================================
+   MENSAJES DE ERROR
+   ============================================ */
+.error-message {
+    color: var(--color-error);
+    font-size: 14px;
+    padding: 8px 12px;
+    background: #fff5f5;
+    border-radius: 6px;
+    border: 1px solid #fed7d7;
+    text-align: center;
+    display: none;
+    min-height: 36px;
+}
+
+.error-message.visible {
+    display: block;
+}
+
+/* ============================================
+   FOOTER
+   ============================================ */
+.login-footer {
+    text-align: center;
+    margin-top: 25px;
+    padding-top: 18px;
+    border-top: 1px solid var(--color-border);
+}
+
+.login-footer p {
+    font-size: 12px;
+    color: var(--color-text-light);
+}
+
+/* ============================================
+   RESPONSIVE DESIGN 
+   ============================================ */
+
+/* Tablets y pantallas medianas */
+@media (max-width: 768px) {
+    .login-card {
+        padding: 28px 22px;
+    }
+}
+
+/* Móviles */
+@media (max-width: 480px) {
+    body {
+        padding: 15px;
+        align-items: flex-start;
+        padding-top: 30px;
+    }
+    
+    .login-card {
+        padding: 22px 16px;
+    }
+    
+    .main-logo {
+        max-width: 180px;
+    }
+
+    .brand-subtitle {
+        font-size: 13px;
+    }
+    
+    .form-group input {
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+    
+    .btn-primary {
+        padding: 10px;
+        font-size: 15px;
+    }
+}
+
+/* Móviles muy pequeños (menos de 360px) */
+@media (max-width: 360px) {
+    .login-card {
+        padding: 18px 12px;
+    }
+    
+    .main-logo {
+        max-width: 150px;
+    }
+}
