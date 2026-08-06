@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Login no exitoso, Mostrar el error específico de Firebase
                 let userMessage = 'Error al iniciar sesión. Verifica tus credenciales.';
                 
-                // Mensajes de error más amigables
+                // Mensajes de error
                 if (result.error.includes('user-not-found') || result.error.includes('invalid-credential')) {
                     userMessage = 'Correo o contraseña incorrectos.';
                 } else if (result.error.includes('too-many-requests')) {

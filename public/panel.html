@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Administración · Linguatec</title>
+    <link rel="stylesheet" href="css/estilos.css">
+    <link rel="stylesheet" href="css/panel.css">
+</head>
+<body>
+    <!-- Contenedor principal que divide la pantalla en 2: Menú y Contenido -->
+    <div class="dashboard-layout">
+        
+        <!-- MENÚ LATERAL (SIDEBAR) -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="recursos/logotipo.webp" alt="Logo Linguatec" class="sidebar-logo">
+            </div>
+            
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-target="seccion-empleados">Gestión de Empleados</button>
+                <button class="nav-item" data-target="seccion-reportes">Reportes y Consultas</button>
+                <button class="nav-item" data-target="seccion-usuarios">Gestión de Usuarios</button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <span id="userNameDisplay">Cargando...</span>
+                    <small>Administrador</small>
+                </div>
+                <button id="btnLogout" class="btn-logout">Cerrar Sesión</button>
+            </div>
+        </aside>
+
+        <!-- ÁREA DE CONTENIDO PRINCIPAL -->
+        <main class="main-content">
+            
+            <!-- SECCIÓN 1: GESTIÓN DE EMPLEADOS -->
+            <section id="seccion-empleados" class="content-section active">
+                <header class="section-header">
+                    <h2>Gestión de Empleados</h2>
+                </header>
+                
+                <!-- LISTADO DE EMPLEADOS (Visible por defecto) -->
+                <div id="vistaListaEmpleados" class="card-container">
+                    <div class="card-header-flex">
+                        <h3>Directorio de Empleados</h3>
+                        <button id="btnMostrarFormulario" class="btn-primary btn-auto">+ Nuevo Empleado</button>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Nombre</th>
+                                    <th>Cargo</th>
+                                    <th>Estatus</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaEmpleadosBody">
+                                <tr>
+                                    <td colspan="5" class="table-empty-state">Cargando empleados...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- FORMULARIO DE REGISTRO (Oculto por defecto con la clase 'hidden') -->
+                <div id="vistaFormularioEmpleado" class="card-container hidden">
+                    <div class="card-header-flex">
+                        <h3>Registrar Nuevo Empleado</h3>
+                    </div>
+                    
+                    <form id="formRegistroEmpleado" class="admin-form">
+                        <!-- DATOS PERSONALES -->
+                        <fieldset>
+                            <legend>Datos Personales</legend>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="empCodigo">Código de Empleado *</label>
+                                    <input type="text" id="empCodigo" maxlength="8" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empNombre">Nombre Completo *</label>
+                                    <input type="text" id="empNombre" maxlength="70" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empEmail">Correo Electrónico *</label>
+                                    <input type="email" id="empEmail" maxlength="50" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empTelefono">Teléfono (10 dígitos) *</label>
+                                    <input type="tel" id="empTelefono" pattern="[0-9]{10}" maxlength="10" title="Debe contener 10 dígitos" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empRFC">RFC *</label>
+                                    <input type="text" id="empRFC" maxlength="13" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empCURP">CURP *</label>
+                                    <input type="text" id="empCURP" maxlength="18" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empIMSS">Número de IMSS *</label>
+                                    <input type="text" id="empIMSS" maxlength="11" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empFoto">Foto del Empleado *</label>
+                                    <input type="file" id="empFoto" accept="image/jpeg, image/png, image/webp" required>
+                                    <small>Formatos: JPG, PNG, Webp. Peso máx. 2MB</small>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <!-- DATOS BANCARIOS -->
+                        <fieldset>
+                            <legend>Datos Bancarios</legend>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="empBanco">Banco *</label>
+                                    <select id="empBanco" required>
+                                        <option value="">Seleccione...</option>
+                                        <option value="BBVA">BBVA</option>
+                                        <option value="Santander">Santander</option>
+                                        <option value="HSBC">HSBC</option>
+                                        <option value="Banamex">Banamex</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empCuenta">Número de Cuenta *</label>
+                                    <input type="text" id="empCuenta" maxlength="11" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empClabe">CLABE Interbancaria *</label>
+                                    <input type="text" id="empClabe" maxlength="18" required>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <!-- DATOS LABORALES -->
+                        <fieldset>
+                            <legend>Datos Laborales</legend>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="empDepartamento">Departamento *</label>
+                                    <select id="empDepartamento" required>
+                                        <option value="">Seleccione...</option>
+                                        <option value="Desarrollo Empresarial">Desarrollo Empresarial</option>
+                                        <option value="Administracion">Administración</option>
+                                        <option value="Tutoria">Tutoría</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empCargo">Cargo *</label>
+                                    <select id="empCargo" required>
+                                        <option value="">Seleccione...</option>
+                                        <option value="Director Tutoria">Director Tutoria</option>
+                                        <option value="Auxiliar Administrativo">Auxiliar Administrativo</option>
+                                        <option value="Verificador">Verificador</option>
+                                        <option value="Servicio Escolar">Servicio Escolar</option>
+                                        <option value="Tutor">Tutor</option>
+                                        <option value="Asesor">Asesor</option>
+                                        <option value="Supervisor">Supervisor</option>
+                                        <option value="Subgerente">Subgerente</option>
+                                        <option value="Gerente Junior">Gerente Junior</option>
+                                        <option value="Gerente Senior">Gerente Senior</option>
+                                        <option value="Gerente Master">Gerente Master</option>
+                                        <option value="Gerente Regional">Gerente Regional</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empFechaIngreso">Fecha de Ingreso *</label>
+                                    <input type="date" id="empFechaIngreso" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empJornada">Horas Semanales (Jornada) *</label>
+                                    <select id="empJornada" required>
+                                        <option value="">Seleccione...</option>
+                                        <option value="24">24 horas</option>
+                                        <option value="36">36 horas</option>
+                                        <option value="48">48 horas</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empTipoJornada">Tipo de Jornada *</label>
+                                    <select id="empTipoJornada" required>
+                                        <option value="">Seleccione...</option>
+                                        <option value="partida">Partida</option>
+                                        <option value="continua_con_descanso">Continua con descanso</option>
+                                        <option value="continua_sin_descanso">Continua sin descanso</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group observaciones-group">
+                                <label for="empObservaciones">Observaciones (Créditos, pensiones, etc.)</label>
+                                <textarea id="empObservaciones" rows="3"></textarea>
+                            </div>
+                        </fieldset>
+
+                        <!-- CONFIGURACIÓN DE HORARIO (Map) -->
+                        <fieldset>
+                            <legend>Horario Personalizado</legend>
+                            <p class="form-instructions">
+                                Marque la casilla de los días que debe laborar el empleado y defina sus horarios.
+                            </p>
+                            <div class="table-responsive">
+                                <table class="horario-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Día</th>
+                                            <th>Entrada</th>
+                                            <th>Salida</th>
+                                            <th>Inicio Descanso</th>
+                                            <th>Descanso (Min)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tablaHorario">
+                                        <!-- Lunes -->
+                                        <tr>
+                                            <td><label><input type="checkbox" class="dia-checkbox" value="lunes"> Lunes</label></td>
+                                            <td><input type="time" class="hora-entrada" value=""></td>
+                                            <td><input type="time" class="hora-salida" value=""></td>
+                                            <td><input type="time" class="hora-descanso" value=""></td>
+                                            <td><input type="number" class="min-descanso" value="0" min="0" step="15"></td>
+                                        </tr>
+                                        <!-- Martes -->
+                                        <tr>
+                                            <td><label><input type="checkbox" class="dia-checkbox" value="martes"> Martes</label></td>
+                                            <td><input type="time" class="hora-entrada" value=""></td>
+                                            <td><input type="time" class="hora-salida" value=""></td>
+                                            <td><input type="time" class="hora-descanso" value=""></td>
+                                            <td><input type="number" class="min-descanso" value="0" min="0" step="15"></td>
+                                        </tr>
+                                        <!-- Miércoles -->
+                                        <tr>
+                                            <td><label><input type="checkbox" class="dia-checkbox" value="miercoles"> Miércoles</label></td>
+                                            <td><input type="time" class="hora-entrada" value=""></td>
+                                            <td><input type="time" class="hora-salida" value=" "></td>
+                                            <td><input type="time" class="hora-descanso" value=""></td>
+                                            <td><input type="number" class="min-descanso" value="0" min="0" step="15"></td>
+                                        </tr>
+                                        <!-- Jueves -->
+                                        <tr>
+                                            <td><label><input type="checkbox" class="dia-checkbox" value="jueves"> Jueves</label></td>
+                                            <td><input type="time" class="hora-entrada" value=""></td>
+                                            <td><input type="time" class="hora-salida" value=""></td>
+                                            <td><input type="time" class="hora-descanso" value=""></td>
+                                            <td><input type="number" class="min-descanso" value="0" min="0" step="15"></td>
+                                        </tr>
+                                        <!-- Viernes -->
+                                        <tr>
+                                            <td><label><input type="checkbox" class="dia-checkbox" value="viernes"> Viernes</label></td>
+                                            <td><input type="time" class="hora-entrada" value=""></td>
+                                            <td><input type="time" class="hora-salida" value=""></td>
+                                            <td><input type="time" class="hora-descanso" value=""></td>
+                                            <td><input type="number" class="min-descanso" value="0" min="0" step="15"></td>
+                                        </tr>
+                                        <!-- Sábado -->
+                                        <tr>
+                                            <td><label><input type="checkbox" class="dia-checkbox" value="sabado"> Sábado</label></td>
+                                            <td><input type="time" class="hora-entrada" value=""></td>
+                                            <td><input type="time" class="hora-salida" value=""></td>
+                                            <td><input type="time" class="hora-descanso" value=""></td>
+                                            <td><input type="number" class="min-descanso" value="0" min="0" step="15"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </fieldset>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary btn-auto mt-20">Guardar Empleado</button>
+                            <button type="button" id="btnVolverLista" class="btn-logout btn-auto mt-20">Cancelar y volver</button>
+                        </div>                        
+                    </form>
+                </div>
+            </section>
+
+            <!-- SECCIÓN 2: REPORTES Y CONSULTAS -->
+            <section id="seccion-reportes" class="content-section">
+                <h2>Reportes y Consultas</h2>
+                <p>Módulo en construcción...</p>
+            </section>
+
+            <!-- SECCIÓN 3: GESTION DE USUARIOS -->
+            <section id="seccion-usuarios" class="content-section">
+                <h2>Gestión de Usuarios</h2>
+                <p>Módulo en construcción...</p>
+            </section>
+
+        </main>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/panel.js"></script>
+</body>
+</html>

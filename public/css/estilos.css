@@ -69,7 +69,7 @@ body {
     object-fit: contain;
 }
 
-.brand-subtitle {
+.subtitle {
     font-size: 15px;
     font-weight: 600;
     color: var(--color-text-light);
@@ -200,7 +200,7 @@ body {
         max-width: 180px;
     }
 
-    .brand-subtitle {
+    .subtitle {
         font-size: 13px;
     }
     
