@@ -88,11 +88,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const file = this.files[0];
             
             if (file) {
-                // Validar el peso 2MB =  2 * 1024 * 1024 = 2,097,152 bytes
-                const maxSize = 2 * 1024 * 1024; 
+                const maxSize = 3 * 1024 * 1024; //3MB
                 
                 if (file.size > maxSize) {
-                    alert("La imagen es demasiado pesada. El límite es 2MB.\nPor favor, elige otra foto o comprímela.");
+                    alert("La imagen es demasiado pesada. El límite es 3MB.\nPor favor, elige otra foto o comprímela.");
                     this.value = ''; // Limpia el input para obligar a subir otra imagen
                     return;
                 }
