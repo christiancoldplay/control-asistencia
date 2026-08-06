@@ -8,10 +8,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // PROTECCIÓN DE RUTA (Auth Guard)
     // ============================================
     // Verifica si hay un usuario autenticado y muestra su correo en la interfaz
-    // 'user' recibe al usuario si esta autenticado o (null si no hay sesion) 
+    // 'user' recibe al usuario si esta autenticado o null en caso contrario 
     auth.onAuthStateChanged((user) => {
         if (user) {
             document.getElementById('userNameDisplay').textContent = user.email;
+            cargarEmpleados();//carga la lista de empleados
         } else { //si no esta autenticado redirige al login (index.html)
             window.location.replace('index.html');
         }
@@ -288,5 +289,83 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // ============================================
+    // CARGAR Y MOSTRAR EMPLEADOS
+    // ============================================
+    const tablaEmpleadosBody = document.getElementById('tablaEmpleadosBody');//referencia a la tabla del elemento tbody de la tabla donde se muestran los empleados
+
+    function cargarEmpleados() {
+        if (!tablaEmpleadosBody) return;//si no existe la tabla, sale de la funcion
+
+        // onSnapshot escucha la base de datos de Firestore en tiempo real
+        db.collection('empleados').onSnapshot((querySnapshot) => {
+            
+            // Elimina el contenido actual de la tabla
+            tablaEmpleadosBody.innerHTML = ''; 
+
+            // Si no hay empleados en la base de datos, muestra mensaje y sale de la funcion 
+            if (querySnapshot.empty) {
+                tablaEmpleadosBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="table-empty-state">No hay empleados registrados aún.</td>
+                    </tr>`;
+                return;
+            }
+
+            // Recorremos cada documento empleado encontrado en la coleccion empleados de Firestore                    
+            querySnapshot.forEach((doc) => {// doc es un objeto con: doc.id = ID del documento (codigo de empleado)
+                const emp = doc.data();// doc.data = Todos los campos del empleado
+                
+                // Creamos una nueva fila para cada empleado
+                const tr = document.createElement('tr');
+
+                // Formateo del color del estatus: activo = verde, inactivo = rojo
+                const estatusColor = emp.estatus === 'activo' ? 'green' : 'red';
+                // Hace mayuscula la primer letra del estatus y la adhiere a las demas letras que conforman la palabra del estatus
+                const estatusTexto = emp.estatus.charAt(0).toUpperCase() + emp.estatus.slice(1); 
+
+                // Construccion del HTML de una fila con 5 columnas
+                tr.innerHTML = `
+                    <td><strong>${emp.codigo}</strong></td>
+                    <td>${emp.nombre}</td>
+                    <td>${emp.cargo}</td>
+                    <td style="color: ${estatusColor}; font-weight: bold;">${estatusTexto}</td>
+                    <td>
+                        <button class="btn-icon" onclick="editarEmpleado('${doc.id}')" title="Editar">
+                            <img src="recursos/icono-editar.svg" alt="Editar">    
+                        </button>
+                        <button class="btn-icon" onclick="verDetalles('${doc.id}')" title="Ver Detalles">
+                            <img src="recursos/icono-ver.svg" alt="Ver">
+                        </button>
+                    </td>
+                `;
+                
+                // Agregamos la fila creada a la tabla para que sea visible en la interfaz
+                tablaEmpleadosBody.appendChild(tr);
+            });
+        }, (error) => {// -- manejo de errores --
+            console.error("Error al cargar empleados:", error);
+            tablaEmpleadosBody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="table-empty-state" style="color: red;">
+                        Error al cargar los datos. Verifica tus permisos.
+                    </td>
+                </tr>`;
+        });
+    }
+
+    // Funciones temporales para los botones editar y ver empleado
+    window.editarEmpleado = function(id) {
+        console.log("Editar empleado con ID:", id);
+        alert("Funcion editar en construccion.");
+    };
+
+    window.verDetalles = function(id) {
+        console.log("Ver detalles del empleado con ID:", id);
+        alert("Funcion ver en construccion.");
+    };
+
+
 
 });

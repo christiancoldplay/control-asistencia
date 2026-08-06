@@ -343,3 +343,29 @@ legend {
     color: var(--color-text-light);
     font-style: italic;
 }
+
+/* ============================================
+   BOTONES DE ICONO (TABLAS)
+   ============================================ */
+.btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    margin: 0 2px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-icon:hover {
+    background-color: var(--color-border);
+}
+
+.btn-icon img {
+    width: 20px;
+    height: 20px;
+    display: block;
+}
