@@ -109,6 +109,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label for="empFoto">Foto del Empleado *</label>
+                                    <img src="" alt="Foto actual" id="previewFoto" class="foto-preview-hidden">
                                     <input type="file" id="empFoto" accept="image/jpeg, image/png, image/webp" required>
                                     <small>Formatos: JPG, PNG, Webp. Peso máx. 2MB</small>
                                 </div>
@@ -293,6 +294,21 @@
             </section>
 
         </main>
+    </div>
+
+    <!-- MODAL DE DETALLES DEL EMPLEADO -->
+    <div id="modalDetalles" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Detalles del Empleado</h3>
+                <button id="btnCerrarModal" class="btn-icon" title="Cerrar">
+                    <img src="recursos/icono-cerrar.svg" alt="Cerrar">
+                </button>
+            </div>
+            <div class="modal-body" id="modalBodyDetalles">
+                <!-- El contenido se inyectará aquí con JavaScript -->
+            </div>
+        </div>
     </div>
 
     <script src="js/config.js"></script>

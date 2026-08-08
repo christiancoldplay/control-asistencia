@@ -369,3 +369,106 @@ legend {
     height: 20px;
     display: block;
 }
+
+/* ============================================
+   PREVISUALIZACIÓN DE FOTO Y MODAL
+   ============================================ */
+.foto-preview {
+    max-width: 120px;
+    height: auto;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    border: 1px solid var(--color-border);
+    display: block;
+}
+
+/* Fondo oscuro detrás del modal */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000; /* Asegura que esté por encima de todo */
+}
+
+/* La ventana blanca */
+.modal-content {
+    background: var(--color-white);
+    width: 90%;
+    max-width: 600px;
+    border-radius: var(--radius);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--color-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    padding: 20px;
+    overflow-y: auto; /* Scroll interno si hay muchos datos */
+}
+
+/* Grid para poner la foto a la izquierda y los datos a la derecha */
+.detalle-grid {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 20px;
+}
+
+.detalle-foto img {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+}
+
+.detalle-info p {
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: var(--color-text);
+}
+
+.detalle-info strong {
+    color: var(--color-primary);
+}
+
+/* ============================================
+   CLASES DEL MODAL Y DETALLES (Limpieza de estilos)
+   ============================================ */
+.modal-title {
+    margin: 0;
+    color: var(--color-primary);
+}
+
+/* Clases para el contenido inyectado desde JS */
+.detalle-horario-lista {
+    margin-top: 5px;
+    padding-left: 20px;
+    font-size: 13px;
+}
+
+.detalle-separador {
+    margin: 15px 0;
+    border: 0;
+    border-top: 1px solid var(--color-border);
+}
+
+/* Clases dinámicas para el estatus */
+.estatus-activo {
+    color: green;
+    font-weight: bold;
+}
+
+.estatus-inactivo, .estatus-baja {
+    color: red;
+    font-weight: bold;
+}

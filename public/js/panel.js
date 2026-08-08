@@ -76,6 +76,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Cambiar la vista para regresar a la tabla
         document.getElementById('vistaFormularioEmpleado').classList.add('hidden');
         document.getElementById('vistaListaEmpleados').classList.remove('hidden');
+
+        // Ocultar previsualización de foto
+        document.getElementById('previewFoto').classList.add('hidden');
+        document.getElementById('previewFoto').src = "";
     }
 
     // ===============================================================
@@ -465,6 +469,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 5. Como es edición, la foto no es obligatoria (ya hay una en la Firebase Storage)
             document.getElementById('empFoto').required = false;
+            // Mostrar la foto actual si existe
+            const previewFoto = document.getElementById('previewFoto');
+            if (emp.fotoURL) {
+                previewFoto.src = emp.fotoURL;
+                previewFoto.classList.remove('hidden');
+            } else {
+                previewFoto.classList.add('hidden');
+            }
 
             // 6. Cambiamos la interfaz de usuario para mostrar el formulario
             document.getElementById('vistaListaEmpleados').classList.add('hidden');//oculta la lista de empleados
@@ -481,11 +493,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-
-    window.verDetalles = function(id) {
-        console.log("Ver detalles del empleado con ID:", id);
-        alert("Funcion ver en construccion.");
-    };
 
     // ============================================
     // 8. DAR DE BAJA A UN EMPLEADO
@@ -515,13 +522,73 @@ document.addEventListener('DOMContentLoaded', () => {
                 motivoBaja: motivo.trim()
             });
 
-            alert("✅ Empleado dado de baja exitosamente.");
+            alert("Empleado dado de baja exitosamente.");
 
         } catch (error) {
             console.error("Error al dar de baja:", error);
             alert("Ocurrió un error al intentar dar de baja al empleado.");
         }
     };
+
+    // ============================================
+    // 9. VER DETALLES DEL EMPLEADO (Modal)
+    // ============================================
+    window.verDetalles = async function(id) {
+        try {
+            const doc = await db.collection('empleados').doc(id).get();
+            if (!doc.exists) return;
+            const emp = doc.data();
+
+            const modalBody = document.getElementById('modalBodyDetalles');
+            
+            // Formatear el horario usando la clase CSS limpia
+            let horarioHTML = "<ul class='detalle-horario-lista'>";
+            if (emp.horario) {
+                for (const [dia, horas] of Object.entries(emp.horario)) {
+                    horarioHTML += `<li><strong>${dia.toUpperCase()}:</strong> ${horas.entrada} a ${horas.salida} (Descanso: ${horas.duracionDescansoMinutos} min)</li>`;
+                }
+            }
+            horarioHTML += "</ul>";
+
+            // Inyectar el HTML en el modal (Cero estilos en línea)
+            modalBody.innerHTML = `
+                <div class="detalle-grid">
+                    <div class="detalle-foto">
+                        <img src="${emp.fotoURL || ''}" alt="Foto de ${emp.nombre}" onerror="this.src='recursos/sin-foto.svg'">
+                    </div>
+                    <div class="detalle-info">
+                        <p><strong>Código:</strong> ${emp.codigo}</p>
+                        <p><strong>Nombre:</strong> ${emp.nombre}</p>
+                        <p><strong>Cargo:</strong> ${emp.cargo} (${emp.departamento})</p>
+                        <p><strong>Estatus:</strong> <span class="estatus-${emp.estatus}">${emp.estatus.toUpperCase()}</span></p>
+                        <p><strong>Email:</strong> ${emp.email}</p>
+                        <p><strong>Teléfono:</strong> ${emp.telefono}</p>
+                        <p><strong>Jornada:</strong> ${emp.jornada} hrs (${emp.tipoJornada})</p>
+                        
+                        <hr class="detalle-separador">
+                        
+                        <p><strong>Horario Laboral:</strong></p>
+                        ${horarioHTML}
+                    </div>
+                </div>
+            `;
+
+            // Mostrar el modal
+            document.getElementById('modalDetalles').classList.remove('hidden');
+
+        } catch (error) {
+            console.error("Error al ver detalles:", error);
+            alert("Ocurrió un error al cargar los detalles.");
+        }
+    };    
+
+    // Evento para cerrar el modal
+    const btnCerrarModal = document.getElementById('btnCerrarModal');
+    if (btnCerrarModal) {
+        btnCerrarModal.addEventListener('click', () => {
+            document.getElementById('modalDetalles').classList.add('hidden');
+        });
+    }
 
 
 });
