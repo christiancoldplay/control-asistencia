@@ -682,18 +682,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // 10. REACTIVAR EMPLEADO/DAR DE ALTA (Alta Logica)
     // ===================================================
     window.darDeAltaEmpleado = async function(id) {
-        const confirmar = confirm("¿Estás seguro de reactivar a este empleado? Su estatus cambiará a 'Activo'.");
+        // Actualizamos el mensaje para que la Directora sepa que la antigüedad se reiniciará
+        const confirmar = confirm("¿Estás seguro de reactivar a este empleado?\n\nSu estatus cambiará a 'Activo' y su Fecha de Ingreso se actualizará al día de hoy (reiniciando su antigüedad laboral).");
         if (!confirmar) return;
 
         try {
+            // 1. Obtener la fecha actual en formato YYYY-MM-DD
+            const hoy = new Date();
+            const year = hoy.getFullYear();
+            const month = String(hoy.getMonth() + 1).padStart(2, '0'); // Agrega un 0 si el mes es menor a 10
+            const day = String(hoy.getDate()).padStart(2, '0');
+            const fechaActual = `${year}-${month}-${day}`;
+
+            // 2. Actualizar el documento en Firestore
             await db.collection('empleados').doc(id).update({
                 estatus: 'activo',
-                // Eliminamos los campos de baja para limpiar el registro
+                fechaIngreso: fechaActual, // Reinicia la antigüedad al día del nuevo registro
+                // Eliminamos los campos de baja para limpiar el historial de salida
                 fechaBaja: firebase.firestore.FieldValue.delete(),
                 motivoBaja: firebase.firestore.FieldValue.delete()
             });
 
-            alert("Empleado reactivado exitosamente.");
+            alert("Empleado reactivado exitosamente con nueva fecha de ingreso.");
         } catch (error) {
             console.error("Error al reactivar:", error);
             alert("Ocurrió un error al intentar reactivar al empleado.");
