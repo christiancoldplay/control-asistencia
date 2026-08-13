@@ -253,6 +253,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
         return null; // retorna null cuando no hay errores detectados
     }
+
+    // --- FUNCIÓN AUXILIAR para Validar Duplicados en Firestore ---
+    async function verificarDuplicados(codigo, rfc, curp, idEditando) {
+        // 1. Validar Código (Solo si es un empleado nuevo)
+        if (!idEditando) {
+            const docRef = await db.collection('empleados').doc(codigo).get();
+            if (docRef.exists) return "El código de empleado que quiere ingresar ya está registrado.";
+        }
+
+        // 2. Validar RFC
+        const rfcQuery = await db.collection('empleados').where('rfc', '==', rfc).get();
+        if (!rfcQuery.empty) {
+            // Verificamos si el RFC pertenece a OTRO empleado distinto al que estamos editando
+            const esDuplicado = rfcQuery.docs.some(doc => doc.id !== idEditando);
+            if (esDuplicado) return "El RFC que quiere ingresar ya esta registrado.";
+        }
+
+        // 3. Validar CURP
+        const curpQuery = await db.collection('empleados').where('curp', '==', curp).get();
+        if (!curpQuery.empty) {
+            const esDuplicado = curpQuery.docs.some(doc => doc.id !== idEditando);
+            if (esDuplicado) return "El CURP que quiere ingresar ya está registrado.";
+        }
+
+        return null; // No hay duplicados
+    }
+
     // =============================================
     //  5.  EVENTO SUBMIT DEL FORMULARIO 
     // =============================================
@@ -275,8 +302,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const horasCalculadas = calcularHorasTabla();
             
             if (horasCalculadas !== jornadaSeleccionada) {
-                alert(`ERROR DE HORARIO:\nHas seleccionado ${jornadaSeleccionada} hrs, pero la tabla suma ${horasCalculadas} hrs.`);
+                alert(`ERROR:\nHas seleccionado una jornada de ${jornadaSeleccionada} hrs semanales, pero el Horario Personalizado suma ${horasCalculadas} hrs. Es necesario que coincidan para poder realizar el registro.`);
                 return; 
+            }
+
+            // 3. VALIDACIÓN DE DUPLICADOS EN FIRESTORE
+            const codigo = document.getElementById('empCodigo').value.trim();
+            const rfc = document.getElementById('empRFC').value.trim().toUpperCase();
+            const curp = document.getElementById('empCURP').value.trim().toUpperCase();
+            
+            const errorDuplicado = await verificarDuplicados(codigo, rfc, curp, empleadoEditandoID);
+            if (errorDuplicado) {
+                alert(`ERROR AL GUARDAR!:\n${errorDuplicado}`);
+                return;
             }
 
             // 3. Bloquear boton 'Guardar'
@@ -394,14 +432,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Protegemos el estatus por si un documento creado manualmente en firestore no lo tiene
                 const estatusDb = emp.estatus || 'inactivo'; 
                 const estatusColor = estatusDb === 'activo' ? 'green' : 'red';
-                const estatusTexto = estatusDb.charAt(0).toUpperCase() + estatusDb.slice(1);
+                const estatusTexto = estatusDb.charAt(0).toUpperCase() + estatusDb.slice(1);//hace mayuscular la primer letra de la palabra
+
+                // ---------------------------------------------------------
+                // LÓGICA DE ALTA/BAJA: Elegimos qué botón mostrar
+                // ---------------------------------------------------------
+                let botonEstadoHTML = '';
+                if (estatusDb === 'activo') {
+                    // Si está activo, mostramos el botón rojo para Dar de Baja
+                    botonEstadoHTML = `
+                        <button class="btn-icon icon-danger" onclick="darDeBajaEmpleado('${doc.id}')" title="Dar de Baja">
+                            <img src="recursos/icono-baja.svg" alt="Baja">
+                        </button>`;
+                } else {
+                    // Si está inactivo o en baja, mostramos el botón verde para Dar de Alta
+                    botonEstadoHTML = `
+                        <button class="btn-icon icon-success" onclick="darDeAltaEmpleado('${doc.id}')" title="Reactivar Empleado">
+                            <img src="recursos/icono-alta.svg" alt="Alta">
+                        </button>`;
+                }
 
                 // Construimos el HTML de las columnas
+                // usamos la clase estatus-activo o estatus-baja creadas en el CSS
                 tr.innerHTML = `
                     <td><strong>${codigo}</strong></td>
                     <td>${nombre}</td>
                     <td>${cargo}</td>
-                    <td style="color: ${estatusColor}; font-weight: bold;">${estatusTexto}</td>
+                    <td><span class="estatus-${estatusDb}">${estatusTexto}</span></td>
                     <td>
                         <button class="btn-icon" onclick="editarEmpleado('${doc.id}')" title="Editar">
                             <img src="recursos/icono-editar.svg" alt="Editar">
@@ -409,9 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="btn-icon" onclick="verDetalles('${doc.id}')" title="Ver Detalles">
                             <img src="recursos/icono-ver.svg" alt="Ver">
                         </button>
-                        <button class="btn-icon" onclick="darDeBajaEmpleado('${doc.id}')" title="Dar de baja">
-                            <img src="recursos/icono-eliminar.svg" alt="Baja" >
-                        </button>
+                        ${botonEstadoHTML} <!-- Aqui se inyecta el boton rojo o verde -->
                     </td>
                 `;
                 // Agregamos la fila creada a la tabla para que sea visible en la interfaz usando appenChild
@@ -528,7 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
 
     // ============================================
-    // 8. DAR DE BAJA A UN EMPLEADO
+    // 8. DAR DE BAJA A UN EMPLEADO (Baja Logica)
     // ============================================
     //funcion global para dar de baja un empleado
     window.darDeBajaEmpleado = async function(id) {
@@ -623,5 +678,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ===================================================
+    // 10. REACTIVAR EMPLEADO/DAR DE ALTA (Alta Logica)
+    // ===================================================
+    window.darDeAltaEmpleado = async function(id) {
+        const confirmar = confirm("¿Estás seguro de reactivar a este empleado? Su estatus cambiará a 'Activo'.");
+        if (!confirmar) return;
+
+        try {
+            await db.collection('empleados').doc(id).update({
+                estatus: 'activo',
+                // Eliminamos los campos de baja para limpiar el registro
+                fechaBaja: firebase.firestore.FieldValue.delete(),
+                motivoBaja: firebase.firestore.FieldValue.delete()
+            });
+
+            alert("Empleado reactivado exitosamente.");
+        } catch (error) {
+            console.error("Error al reactivar:", error);
+            alert("Ocurrió un error al intentar reactivar al empleado.");
+        }
+    };
 
 });
