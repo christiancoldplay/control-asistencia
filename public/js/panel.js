@@ -133,6 +133,39 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ============================================
+    // BLOQUEAR INPUTS DE HORARIO
+    // ============================================
+    // Controla el estado de los inputs de una fila cuando se marca o desmarca el checkbox
+    // parametro: checkbox recibe el elemento html del checkbox que fue marcado/desmarcado
+    function controlInputsHorario(checkbox) {
+        // obtiene el elemento 'tr' (fila de tabla) padre mas cercano
+        const fila = checkbox.closest('tr');
+        // Selecciona todos los inputs de la fila que sean tipo time o number
+        // time = campos de hora (entrada, salida, inicio descanso)
+        // number = campo de minutos de descanso
+        const inputs = fila.querySelectorAll('input[type="time"], input[type="number"]');
+        // Recorre todos los inputs encontrados por fila
+        inputs.forEach(input => {
+            //cambia el valor de la propiedad disabled a false si el checkbox esta marcado, o bisceversa.
+            input.disabled = !checkbox.checked;
+            if (!checkbox.checked) input.value = ''; // Limpia el valor por seguridad de datos
+        });
+    }
+
+    // Asignamos el evento 'change' a todos los checkboxes al cargar la página
+    //busca en todo el documento html, todos los elementos html con la clase dia-checkbox
+    //devuelve un nodeList con los checkboxes
+    //forEach recorre uno por uno los checkboxes
+    // cb es el parametro que representa el checkbox actual
+    document.querySelectorAll('.dia-checkbox').forEach(cb => {
+        //agrega un escuchador de eventos al checkbox
+        //el evento change se dispara cuando el usuario marca o desmarca el checkbox
+        //cuando pasa eso se ejecuta la funcion controlInputsHorario(cb)
+        cb.addEventListener('change', () => controlInputsHorario(cb));
+        controlInputsHorario(cb); // Ejecutamos una vez para inicializar el estado visual (gris)
+    });
+
     // ===========================================
     // PROCESO PARA GUARDAR EMPLEADO EN FIRESTORE
     // ==========================================

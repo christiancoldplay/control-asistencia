@@ -472,3 +472,23 @@ legend {
     color: red;
     font-weight: bold;
 }
+
+/* ============================================
+   ESTADOS DE ICONOS E INPUTS DESHABILITADOS
+   ============================================ */
+/* Filtros para cambiar el color de los iconos (svg) */
+.icon-danger img {
+    filter: invert(20%) sepia(90%) saturate(7000%) hue-rotate(350deg); /* Rojo */
+}
+
+.icon-success img {
+    filter: invert(40%) sepia(80%) saturate(2000%) hue-rotate(90deg); /* Verde */
+}
+
+/* Estilo visual para inputs bloqueados en la tabla de horario */
+.horario-table input:disabled {
+    background-color: var(--color-bg);
+    color: var(--color-text-light);
+    cursor: not-allowed;
+    border-color: transparent;
+}
