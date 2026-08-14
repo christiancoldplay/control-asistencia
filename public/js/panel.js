@@ -637,26 +637,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             horarioHTML += "</ul>";
+            //proteccion del estatus por si es undefined
+            const estatusDb = emp.estatus || 'inactivo';
 
-            // Inyectar el HTML en el modal (Cero estilos en línea)
+            // Inyeccion del HTML en el modal agrupado por secciones
             modalBody.innerHTML = `
                 <div class="detalle-grid">
                     <div class="detalle-foto">
                         <img src="${emp.fotoURL || ''}" alt="Foto de ${emp.nombre}" onerror="this.src='recursos/sin-foto.svg'">
+                        <!-- se usa la variable protegida estatusDb -->
+                        <div class="detalle-estatus-contenedor">
+                            <span class="estatus-${estatusDb} detalle-estatus-texto">${estatusDb.toUpperCase()}</span>
+                        </div>
                     </div>
+
                     <div class="detalle-info">
+
+                        <h4 class="detalle-seccion-titulo">Datos Personales</h4>
                         <p><strong>Código:</strong> ${emp.codigo}</p>
                         <p><strong>Nombre:</strong> ${emp.nombre}</p>
-                        <p><strong>Cargo:</strong> ${emp.cargo} (${emp.departamento})</p>
-                        <p><strong>Estatus:</strong> <span class="estatus-${emp.estatus}">${emp.estatus.toUpperCase()}</span></p>
                         <p><strong>Email:</strong> ${emp.email}</p>
                         <p><strong>Teléfono:</strong> ${emp.telefono}</p>
+                        <p><strong>RFC:</strong> ${emp.rfc}</p>
+                        <p><strong>CURP:</strong> ${emp.curp}</p>
+                        <p><strong>NSS(IMSS):</strong> ${emp.numIMSS}</p>
+
+                        <h4 class="detalle-seccion-titulo">Datos Laborales</h4>
+                        <p><strong>Departamento:</strong> ${emp.departamento}</p>
+                        <p><strong>Cargo:</strong> ${emp.cargo}</p>
+                        <p><strong>Fecha Ingreso:</strong> ${emp.fechaIngreso}</p>
                         <p><strong>Jornada:</strong> ${emp.jornada} hrs (${emp.tipoJornada})</p>
+                        <p><strong>Saldo horas extra:</strong> ${emp.saldoHorasExtra || 0} hrs</p>                        
                         
-                        <hr class="detalle-separador">
-                        
-                        <p><strong>Horario Laboral:</strong></p>
+                        <h4 class="detalle-seccion-titulo">Datos Bancarios</h4>
+                        <p><strong>Banco:</strong> ${emp.banco}</p>
+                        <p><strong>Cuenta:</strong> ${emp.cuenta}</p>
+                        <p><strong>CLABE:</strong> ${emp.clabe}</p>
+
+                        <h4 class="detalle-seccion-titulo">Horario Laboral</h4>
                         ${horarioHTML}
+                        
+                        <h4 class="detalle-seccion-titulo">Observaciones</h4>
+                        <p>${emp.observaciones || ''}</p>                        
+                        
                     </div>
                 </div>
             `;

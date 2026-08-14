@@ -473,6 +473,32 @@ legend {
     font-weight: bold;
 }
 
+/* Subtítulos dentro del modal de detalles */
+.detalle-seccion-titulo {
+    color: var(--color-primary);
+    margin-top: 20px;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 15px;
+}
+
+/* Quitamos el margen superior solo al primer título para que se alinee bien */
+.detalle-seccion-titulo:first-of-type {
+    margin-top: 0;
+}
+
+/* Contenedor del estatus debajo de la foto en el modal */
+.detalle-estatus-contenedor {
+    text-align: center;
+    margin-top: 10px;
+}
+
+/* Tamaño resaltado para el texto del estatus */
+.detalle-estatus-texto {
+    font-size: 16px;
+}
+
 /* ============================================
    ESTADOS DE ICONOS E INPUTS DESHABILITADOS
    ============================================ */
