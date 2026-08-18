@@ -396,7 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================
     // 6. CARGAR Y MOSTRAR EMPLEADOS
     // ============================================
-    const tablaEmpleadosBody = document.getElementById('tablaEmpleadosBody');//referencia a la tabla del elemento tbody de la tabla donde se muestran los empleados
+    const tablaEmpleadosBody = document.getElementById('tablaEmpleadosBody');//variable que referencia al elemento tbody de la tabla donde se muestran los empleados
 
     function cargarEmpleados() {
         if (!tablaEmpleadosBody) return;//si no existe la tabla, sale de la funcion
@@ -417,43 +417,39 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Recorremos cada empleado encontrado en Firestore 
-            // querySnapshot es un objeto que contiene el resultado de la consulta a firestore (snapshot de la coleccion empleados)
-            //tiene metodos para recorrer los documentos que contiene
-            //forEach es un metodo que recorre cada documento dentro de querySnapshot
-            //doc es un objeto que representa un documento individual de firestore
+            // - querySnapshot es un objeto que contiene el estado actual de todos los documentos de la coleccion empleados,
+            //   tiene metodos para recorrer los documentos que contiene.
             querySnapshot.forEach((doc) => {
-                const emp = doc.data();//Es un objeto con todos los campos del documento (empleado)
-                const tr = document.createElement('tr');// Creamos una nueva fila para cada empleado
+                const emp = doc.data();//doc.data devuelve un objeto con todos los campos del empleado
+                const tr = document.createElement('tr');// Crea una nueva fila de tabla vacia
 
-                //Si falta un dato, usamos un valor por defecto
-                const codigo = emp.codigo || doc.id; // Si no hay campo código, mostramos el ID del documento (doc.id)
+                //Extraccion y normalizacion de los datos del empleado
+                const codigo = emp.codigo || doc.id; 
                 const nombre = emp.nombre || 'Sin nombre registrado';
                 const cargo = emp.cargo || 'Sin cargo';  
-                // Protegemos el estatus por si un documento creado manualmente en firestore no lo tiene
                 const estatusDb = emp.estatus || 'inactivo'; 
                 const estatusColor = estatusDb === 'activo' ? 'green' : 'red';
-                const estatusTexto = estatusDb.charAt(0).toUpperCase() + estatusDb.slice(1);//hace mayuscular la primer letra de la palabra
+                const estatusTexto = estatusDb.charAt(0).toUpperCase() + estatusDb.slice(1);//hace mayuscula la primer letra de la palabra del estatus
 
-                // ---------------------------------------------------------
-                // LÓGICA DE ALTA/BAJA: Elegimos qué botón mostrar
-                // ---------------------------------------------------------
+                // -----------------------------------------------
+                // Logica para mostrar el boton de alta o baja, de acuerdo al estatus del empleado
+                // -----------------------------------------------
                 let botonEstadoHTML = '';
                 if (estatusDb === 'activo') {
-                    // Si está activo, mostramos el botón rojo para Dar de Baja
+                    // Si el estatus es activo, mostramos el botón rojo (baja) para "Dar de Baja"
                     botonEstadoHTML = `
                         <button class="btn-icon icon-danger" onclick="darDeBajaEmpleado('${doc.id}')" title="Dar de Baja">
                             <img src="recursos/icono-baja.svg" alt="Baja">
                         </button>`;
                 } else {
-                    // Si está inactivo o en baja, mostramos el botón verde para Dar de Alta
+                    // Si el estatus es inactivo, mostramos el botón verde (alta) para "Dar de Alta"
                     botonEstadoHTML = `
                         <button class="btn-icon icon-success" onclick="darDeAltaEmpleado('${doc.id}')" title="Reactivar Empleado">
                             <img src="recursos/icono-alta.svg" alt="Alta">
                         </button>`;
                 }
 
-                // Construimos el HTML de las columnas
-                // usamos la clase estatus-activo o estatus-baja creadas en el CSS
+                // Construimos el HTML de las columnas de cada fila (empleado) con sus respectivos valores o funciones
                 tr.innerHTML = `
                     <td><strong>${codigo}</strong></td>
                     <td>${nombre}</td>
@@ -466,7 +462,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="btn-icon" onclick="verDetalles('${doc.id}')" title="Ver Detalles">
                             <img src="recursos/icono-ver.svg" alt="Ver">
                         </button>
-                        ${botonEstadoHTML} <!-- Aqui se inyecta el boton rojo o verde -->
+                        <button class="btn-icon" onclick="mostrarCredencial('${doc.id}')" title="Ver Credencial">
+                            <img src="recursos/icono-credencial.svg" alt="Credencial">
+                        </button>
+                        ${botonEstadoHTML} <!-- Aqui se define el color del boton rojo o verde de acuerdo al estatus del empleado (estatusDb) -->
                     </td>
                 `;
                 // Agregamos la fila creada a la tabla para que sea visible en la interfaz usando appenChild
@@ -625,11 +624,11 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const doc = await db.collection('empleados').doc(id).get();
             if (!doc.exists) return;
-            const emp = doc.data();
+            const emp = doc.data();//contiene los datos del empleado indicado con el id
 
             const modalBody = document.getElementById('modalBodyDetalles');
             
-            // Formatear el horario usando la clase CSS limpia
+            // Formatear el horario
             let horarioHTML = "<ul class='detalle-horario-lista'>";
             if (emp.horario) {
                 for (const [dia, horas] of Object.entries(emp.horario)) {
@@ -705,7 +704,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 10. REACTIVAR EMPLEADO/DAR DE ALTA (Alta Logica)
     // ===================================================
     window.darDeAltaEmpleado = async function(id) {
-        // Actualizamos el mensaje para que la Directora sepa que la antigüedad se reiniciará
+        // Actualizamos el mensaje para notificar al administrador que la antigüedad se reiniciará
         const confirmar = confirm("¿Estás seguro de reactivar a este empleado?\n\nSu estatus cambiará a 'Activo' y su Fecha de Ingreso se actualizará al día de hoy (reiniciando su antigüedad laboral).");
         if (!confirmar) return;
 
@@ -732,5 +731,64 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("Ocurrió un error al intentar reactivar al empleado.");
         }
     };
+
+    // ============================================
+    // 11. MOSTRAR CREDENCIAL DIGITAL Y GENERAR QR
+    // ============================================
+    window.mostrarCredencial = async function(identificadorEmpleado) {
+        try {
+            // 1. Consultar los datos del empleado en Firestore
+            const documento = await db.collection('empleados').doc(identificadorEmpleado).get();
+            if (!documento.exists) {
+                alert("El empleado no existe.");
+                return;
+            }
+            
+            const datosEmpleado = documento.data();//contiene los datos del empleado (documento) que corresponde al 'identificadorEmpleado' 
+
+            // 2. Llenar los textos de la credencial
+            document.getElementById('credencialNombre').textContent = datosEmpleado.nombre;
+            document.getElementById('credencialCargo').textContent = datosEmpleado.cargo;
+            document.getElementById('credencialDepartamento').textContent = datosEmpleado.departamento;
+            
+            // Usamos el código del empleado, o el ID del documento como respaldo
+            const codigoFinal = datosEmpleado.codigo || identificadorEmpleado;
+            document.getElementById('credencialCodigo').textContent = codigoFinal;
+
+            // 3. Cargar la foto
+            const fotoCredencial = document.getElementById('credencialFoto');
+            fotoCredencial.src = datosEmpleado.fotoURL || 'recursos/sin-foto.svg';
+
+            // 4. Generar el Código QR
+            const contenedorQR = document.getElementById('credencialQR');
+            contenedorQR.innerHTML = ''; // Limpiar el QR anterior para que no se amontonen
+
+            // Usamos la librería QRCode para dibujar el código
+            new QRCode(contenedorQR, {
+                text: codigoFinal, // El texto oculto en el QR será el Código del Empleado
+                width: 130,        // Ancho en píxeles
+                height: 130,       // Alto en píxeles
+                colorDark : "#1a3a5c", // Color oscuro
+                colorLight : "#ffffff", // Fondo blanco
+                correctLevel : QRCode.CorrectLevel.H // Alta redundancia para que se lea fácil
+            });
+
+            // 5. Mostrar la ventana modal
+            document.getElementById('modalCredencial').classList.remove('hidden');
+
+        } catch (error) {
+            console.error("Error al generar credencial:", error);
+            alert("Ocurrió un error al cargar la credencial digital.");
+        }
+    };
+
+    // Evento para cerrar el modal de la credencial
+    const botonCerrarCredencial = document.getElementById('btnCerrarCredencial');
+    if (botonCerrarCredencial) {
+        botonCerrarCredencial.addEventListener('click', () => {
+            document.getElementById('modalCredencial').classList.add('hidden');
+        });
+    }
+
 
 });

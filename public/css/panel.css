@@ -383,7 +383,7 @@ legend {
 }
 
 /* Fondo oscuro detrás del modal */
-.modal-overlay {
+.modal-fondo {
     position: fixed;
     top: 0; left: 0; width: 100vw; height: 100vh;
     background: rgba(0, 0, 0, 0.6);
@@ -517,4 +517,88 @@ legend {
     color: var(--color-text-light);
     cursor: not-allowed;
     border-color: transparent;
+}
+
+/* ============================================
+   DISEÑO DE LA CREDENCIAL DIGITAL
+   ============================================ */
+.credencial-tarjeta {
+    background-color: var(--color-white);
+    width: 300px;
+    border-radius: 12px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    overflow: hidden;
+    text-align: center;
+    border: 1px solid var(--color-border);
+}
+
+.credencial-encabezado {
+    background-color: var(--color-white);
+    padding: 15px;
+    border-bottom: 3px solid var(--color-secondary);
+}
+
+.credencial-encabezado img {
+    max-width: 120px;
+}
+
+.credencial-foto-contenedor {
+    margin-top: 20px;
+}
+
+.credencial-foto-contenedor img {
+    width: 110px;
+    height: 110px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 3px solid var(--color-bg);
+    box-shadow: var(--shadow);
+}
+
+.credencial-datos {
+    padding: 15px 20px 5px;
+}
+
+.credencial-datos h2 {
+    font-size: 18px;
+    color: var(--color-primary);
+    margin-bottom: 5px;
+}
+
+.credencial-datos p {
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--color-text);
+    margin-bottom: 2px;
+}
+
+.credencial-datos small {
+    font-size: 12px;
+    color: var(--color-text-light);
+}
+
+.credencial-qr {
+    display: flex;
+    justify-content: center;
+    padding: 15px;
+}
+
+.credencial-pie {
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    padding: 10px;
+    font-weight: bold;
+    font-size: 14px;
+    letter-spacing: 1px;
+}
+
+.credencial-modal-ancho {
+    max-width: 400px; 
+}
+
+.credencial-fondo {
+    background-color: #f0f4f8;
+    display: flex;
+    justify-content: center;
+    padding: 30px;
 }

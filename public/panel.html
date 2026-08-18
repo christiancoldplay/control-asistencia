@@ -296,8 +296,8 @@
         </main>
     </div>
 
-    <!-- MODAL DE DETALLES DEL EMPLEADO -->
-    <div id="modalDetalles" class="modal-overlay hidden">
+    <!-- MODAL DE VER DETALLES DEL EMPLEADO -->
+    <div id="modalDetalles" class="modal-fondo hidden">
         <div class="modal-content">
             <div class="modal-header">
                 <h3 class="modal-title">Detalles del Empleado</h3>
@@ -311,11 +311,47 @@
         </div>
     </div>
 
+    <!-- MODAL DE CREDENCIAL DIGITAL -->
+    <div id="modalCredencial" class="modal-fondo hidden">
+        <div class="modal-content credencial-modal-ancho">
+            <div class="modal-header">
+                <h3 class="modal-title">Credencial Digital</h3>
+                <button id="btnCerrarCredencial" class="btn-icon" title="Cerrar">
+                    <img src="recursos/icono-cerrar.svg" alt="Cerrar">
+                </button>
+            </div>
+            <div class="modal-body credencial-fondo">
+                
+                <!-- DISEÑO DE LA TARJETA -->
+                <div id="tarjetaCredencial" class="credencial-tarjeta">
+                    <div class="credencial-encabezado">
+                        <img src="recursos/logotipo.webp" alt="Linguatec">
+                    </div>
+                    <div class="credencial-foto-contenedor">
+                        <img id="credencialFoto" src="" alt="Foto" onerror="this.src='recursos/sin-foto.svg'">
+                    </div>
+                    <div class="credencial-datos">
+                        <h2 id="credencialNombre">Nombre del Empleado</h2>
+                        <p id="credencialCargo">Cargo</p>
+                        <small id="credencialDepartamento">Departamento</small>
+                    </div>
+                    <!-- Aquí la librería inyectará el código QR -->
+                    <div id="credencialQR" class="credencial-qr"></div>
+                    <div class="credencial-pie">
+                        ID: <span id="credencialCodigo">EMP-000</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
     <script src="js/config.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="js/app.js"></script>
     <script src="js/panel.js"></script>
 </body>
