@@ -803,8 +803,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Cambiamos el texto del botón despues del click
             const spanTexto = document.getElementById('textoBtnDescargar');
-            const textoOriginal = spanTexto.textContent;
-            spanTexto.textContent = "Generando imagen...";
+            const textoOriginal = spanTexto.textContent;//guarda el texto original del boton "Descargar credencial"
+            spanTexto.textContent = "Generando imagen...";//cambia el texto del boton
             btnDescargarCredencial.disabled = true;
 
             // 2. Usamos html2canvas para convertir el HTML en un elemento <canvas>
@@ -813,17 +813,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 useCORS: true, // Permite cargar la foto de perfil desde Firebase Storage sin errores
                 backgroundColor: null // Fondo transparente si la tarjeta tiene bordes redondeados
             }).then(canvas => {
-                // 3. Convertimos el canvas a una URL de imagen PNG
+                // 3. Convertimos el canvas a una URL de datos en formato de imagen PNG
                 const imagenDataUrl = canvas.toDataURL("image/png");
                 
-                // 4. Creamos un enlace <a> invisible para forzar la descarga
+                // 4. Creamos un enlace (a) en memoria para forzar la descarga (sin mostrarlo en la interfaz)
                 const enlaceDescarga = document.createElement('a');
-                // Limpiamos el nombre para que no tenga espacios raros en el archivo
+                // Limpiamos el nombre para que no tenga espacios en el archivo
                 const nombreArchivo = nombreEmpleado.replace(/\s+/g, '_'); 
+                // Se define el nombre del archivo
                 enlaceDescarga.download = `Credencial_${nombreArchivo}.png`;
+                // Se le da la url de la imagen
                 enlaceDescarga.href = imagenDataUrl;
                 
-                // Simulamos el clic
+                // Simulamos el clic para iniciar la descarga
                 enlaceDescarga.click();
 
                 // Restauramos el botón
