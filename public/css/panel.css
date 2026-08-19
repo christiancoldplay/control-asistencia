@@ -602,3 +602,43 @@ legend {
     justify-content: center;
     padding: 30px;
 }
+
+/* ============================================
+   ACCIONES DE LA CREDENCIAL Y BOTONES CON ICONO
+   ============================================ */
+/* Centramos el botón de descarga debajo de la tarjeta */
+.credencial-acciones {
+    width: 100%;
+    justify-content: center;
+    margin-top: 20px;
+    padding-top: 0;
+    border-top: none; /* Quitamos la línea superior que trae form-actions por defecto */
+}
+
+/* Alineación para iconos dentro de botones de texto */
+.btn-con-icono {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+/* Tamaño del icono y color del icono a blanco */
+.btn-con-icono img {
+    width: 18px;
+    height: 18px;
+    filter: brightness(0) invert(1); /* Convierte el icono SVG a blanco */
+}
+
+/* Clases estructurales para el modal de la credencial */
+.credencial-modal-ancho {
+    max-width: 400px; /* Más angosto para simular el tamaño de una tarjeta */
+}
+
+.credencial-fondo {
+    background-color: #f0f4f8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px;
+}

@@ -790,5 +790,53 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ============================================
+    // 12. DESCARGAR CREDENCIAL (HTML a PNG)
+    // ============================================
+    const btnDescargarCredencial = document.getElementById('btnDescargarCredencial');
+    
+    if (btnDescargarCredencial) {
+        btnDescargarCredencial.addEventListener('click', () => {
+            // 1. Seleccionamos el elemento HTML que queremos descargar
+            const tarjeta = document.getElementById('tarjetaCredencial');
+            const nombreEmpleado = document.getElementById('credencialNombre').textContent;
+            
+            // Cambiamos el texto del botón despues del click
+            const spanTexto = document.getElementById('textoBtnDescargar');
+            const textoOriginal = spanTexto.textContent;
+            spanTexto.textContent = "Generando imagen...";
+            btnDescargarCredencial.disabled = true;
+
+            // 2. Usamos html2canvas para convertir el HTML en un elemento <canvas>
+            html2canvas(tarjeta, {
+                scale: 2, // Aumentamos la escala para que la imagen tenga alta resolución
+                useCORS: true, // Permite cargar la foto de perfil desde Firebase Storage sin errores
+                backgroundColor: null // Fondo transparente si la tarjeta tiene bordes redondeados
+            }).then(canvas => {
+                // 3. Convertimos el canvas a una URL de imagen PNG
+                const imagenDataUrl = canvas.toDataURL("image/png");
+                
+                // 4. Creamos un enlace <a> invisible para forzar la descarga
+                const enlaceDescarga = document.createElement('a');
+                // Limpiamos el nombre para que no tenga espacios raros en el archivo
+                const nombreArchivo = nombreEmpleado.replace(/\s+/g, '_'); 
+                enlaceDescarga.download = `Credencial_${nombreArchivo}.png`;
+                enlaceDescarga.href = imagenDataUrl;
+                
+                // Simulamos el clic
+                enlaceDescarga.click();
+
+                // Restauramos el botón
+                spanTexto.textContent = textoOriginal;
+                btnDescargarCredencial.disabled = false;
+            }).catch(error => {
+                console.error("Error al generar la imagen:", error);
+                alert("Ocurrió un error al intentar descargar la credencial.");
+                btnDescargarCredencial.innerHTML = textoOriginal;
+                btnDescargarCredencial.disabled = false;
+            });
+        });
+    }
+
 
 });
