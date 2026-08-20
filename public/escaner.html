@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <!-- Configuración para que se vea bien en celulares -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Escáner de Asistencia - Linguatec</title>
+    <link rel="stylesheet" href="css/estilos.css">
+    <link rel="stylesheet" href="css/escaner.css">
+</head>
+<body>
+
+    <div class="escaner-layout">
+        <!-- Encabezado Móvil -->
+        <header class="escaner-header">
+            <img src="recursos/logotipo.webp" alt="Linguatec" class="escaner-logo">
+            <div class="escaner-user-info">
+                <span id="recepcionistaNombre">Cargando...</span>
+                <small>Recepción</small>
+            </div>
+        </header>
+
+        <!-- Área Principal (La Cámara) -->
+        <main class="escaner-main">
+            <div class="instrucciones">
+                <h2>Registro de Asistencia</h2>
+                <p>Verifica la identidad del colaborador y apunta la cámara al código QR de la credencial.</p>
+            </div>
+
+            <!-- Aquí es donde la librería inyectará el video de la cámara -->
+            <div id="lectorQR" class="lector-contenedor"></div>
+
+            <!-- Tarjeta de resultado (Se muestra al escanear con éxito) -->
+            <div id="resultadoEscaneo" class="resultado-tarjeta hidden">
+                <div class="resultado-icono">
+                    <img src="recursos/icono-exito.svg" alt="Exito">
+                </div>
+                <h3 id="resultadoMensaje">Asistencia Registrada</h3>
+                <p id="resultadoEmpleado">Nombre del empleado</p>
+                <p id="resultadoHora" class="resultado-hora">00:00 AM</p>
+                <button id="btnEscanearNuevo" class="btn-primary mt-20">Escanear Siguiente</button>
+            </div>
+        </main>
+
+        <!-- Pie de página -->
+        <footer class="escaner-footer">
+            <button id="btnLogout" class="btn-logout btn-auto btn-centrado">Cerrar Sesión</button>
+        </footer>
+    </div>
+
+    <!-- Librerías de Firebase -->
+    <script src="js/config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+    
+    <!-- Librería para leer QR -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+    <!-- Lógica de la App -->
+    <script src="js/app.js"></script>
+    <script src="js/escaner.js"></script>
+
+    <!-- Al final del body o en el head -->
+    <audio id="beep-sonido" preload="auto" style="display:none;">
+    <source src="recursos/tonos/beep.mp3" type="audio/mpeg">
+    </audio>
+</body>
+</html>
