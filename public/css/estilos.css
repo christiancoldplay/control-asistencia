@@ -2,9 +2,9 @@
    ESTILOS GLOBALES Y VARIABLES
    ============================================ */
 :root {
-    --color-primary: #1a3a5c;      /* Azul oscuro */
-    --color-secondary: #2b6cb0;    /* Azul medio */
-    --color-bg: #f0f4f8;           /* Fondo gris claro */
+    --color-primary: #1a3a5c;      
+    --color-secondary: #2b6cb0;    
+    --color-bg: #f0f4f8;           
     --color-white: #ffffff;
     --color-text: #2d3748;
     --color-text-light: #4a5568;

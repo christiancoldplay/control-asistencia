@@ -499,6 +499,15 @@ legend {
     font-size: 16px;
 }
 
+/* Input de lectura de la contraseña termporal */
+.usuario-password-temp {
+    background-color: #e9ecef;
+    font-family: monospace;
+    font-size: 18px;
+    text-align: center;
+    letter-spacing: 2px;
+}
+
 /* ============================================
    ESTADOS DE ICONOS E INPUTS DESHABILITADOS
    ============================================ */
@@ -641,4 +650,54 @@ legend {
     flex-direction: column;
     align-items: center;
     padding: 30px;
+}
+
+/* Botón secundario (Para acciones menores como Copiar) */
+.btn-secundario {
+    background-color: var(--color-bg);
+    color: var(--color-primary);
+    border: 1px solid var(--color-border);
+    padding: 10px 15px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    font-family: var(--font);
+    transition: all 0.2s;
+}
+
+.btn-secundario:hover {
+    background-color: #e2e8f0;
+}
+
+/* ============================================
+   VISTA DE ÉXITO EN MODALES
+   ============================================ */
+.text-center {
+    text-align: center;
+}
+
+.justify-center {
+    justify-content: center;
+}
+
+.icono-exito-grande img {
+    width: 60px;
+    height: 60px;
+    margin-bottom: 15px;
+}
+
+.titulo-exito {
+    color: green;
+    margin-bottom: 10px;
+}
+
+/* Textarea de credenciales */
+.usuario-password-temp {
+    background-color: #e9ecef;
+    font-family: monospace;
+    font-size: 14px; 
+    text-align: left; 
+    padding: 15px;
+    line-height: 1.5;
+    resize: none;
 }

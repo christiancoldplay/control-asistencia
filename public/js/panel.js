@@ -12,7 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
     auth.onAuthStateChanged((user) => {
         if (user) {
             document.getElementById('userNameDisplay').textContent = user.email;
-            cargarEmpleados();//carga la lista de empleados
+            cargarEmpleados();//carga la tabla de empleados
+            cargarUsuarios();//carga la tabla de usuarios
         } else { //si no esta autenticado redirige al login (index.html)
             window.location.replace('index.html');
         }
@@ -839,6 +840,193 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+
+    // ============================================
+    // 13. GESTIÓN DE USUARIOS (Registro de usuario)
+    // ============================================
+    
+    // Inicializamos una app secundaria de Firebase.
+    // Esto permite crear nuevas cuentas sin cerrar la sesión actual del 'administrador'
+    const appSecundaria = firebase.initializeApp(firebaseConfig, "AppSecundaria");
+    const authSecundario = appSecundaria.auth();
+
+    // referencias al DOM
+    const modalOtorgarAcceso = document.getElementById('modalOtorgarAcceso');
+    const btnAbrirModalAcceso = document.getElementById('btnAbrirModalAcceso');
+    const btnCerrarModalAcceso = document.getElementById('btnCerrarModalAcceso');
+    const formOtorgarAcceso = document.getElementById('formOtorgarAcceso');
+    const selectEmpleadoAcceso = document.getElementById('selectEmpleadoAcceso');
+    const tablaUsuariosBody = document.getElementById('tablaUsuariosBody');
+
+    // referencias a las vistas del modal
+    const vistaFormCrearUsuario = document.getElementById('vistaFormCrearUsuario');
+    const vistaExitoCrearUsuario = document.getElementById('vistaExitoCrearUsuario');
+    const textoCredenciales = document.getElementById('textoCredenciales');
+    const btnCopiarCredenciales = document.getElementById('btnCopiarCredenciales');
+    const textoBtnCopiar = document.getElementById('textoBtnCopiar');
+
+    // Función para generar contraseña aleatoria
+    function generarPasswordTemporal() {
+        const caracteres = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+        let password = "";
+        for (let i = 0; i < 8; i++) {
+            password += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+        }
+        return password;
+    }
+
+    // Abrir Modal y cargar lista de Empleados Activos
+    if (btnAbrirModalAcceso) {
+        btnAbrirModalAcceso.addEventListener('click', () => {
+            // Se muestra el formulario y se oculta el mensaje de exito
+            vistaFormCrearUsuario.classList.remove('hidden');
+            vistaExitoCrearUsuario.classList.add('hidden');            
+            
+            // Consultamos a Firestore solo por los empleados con estatus 'activo'
+            db.collection('empleados').where('estatus', '==', 'activo').get().then((consulta) => {
+                selectEmpleadoAcceso.innerHTML = '<option value="">Seleccione un empleado...</option>';
+                
+                consulta.forEach((doc) => {
+                    const emp = doc.data();
+                    // Guardamos el email y nombre en atributos "data-" ocultos para usarlos al guardar
+                    selectEmpleadoAcceso.innerHTML += `<option value="${doc.id}" data-email="${emp.email}" data-nombre="${emp.nombre}">${emp.nombre} (${emp.codigo})</option>`;
+                });
+            }).catch(error => console.error("Error al cargar empleados activos:", error));
+
+            modalOtorgarAcceso.classList.remove('hidden');
+        });
+    }
+
+    // Cerrar Modal
+    if (btnCerrarModalAcceso) {
+        btnCerrarModalAcceso.addEventListener('click', () => {
+            modalOtorgarAcceso.classList.add('hidden');
+            formOtorgarAcceso.reset();
+        });
+    }
+
+    // Guardar el Nuevo Usuario
+    if (formOtorgarAcceso) {
+        formOtorgarAcceso.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btnSubmit = formOtorgarAcceso.querySelector('button[type="submit"]');
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = "Creando cuenta...";
+
+            try {
+                // 1. Extraer datos del <select>
+                const opcionSeleccionada = selectEmpleadoAcceso.options[selectEmpleadoAcceso.selectedIndex];
+                const empleadoID = opcionSeleccionada.value;
+                const emailEmpleado = opcionSeleccionada.getAttribute('data-email');
+                const nombreEmpleado = opcionSeleccionada.getAttribute('data-nombre');                
+                const rolSeleccionado = document.getElementById('usuarioRol').value;
+                
+                //2. Genramos la contraseña temporal
+                const passwordTemp = inputPasswordTemp.value;
+
+                // 3. Crear usuario en Firebase Authentication (Usando la App Secundaria)
+                const credencialUsuario = await authSecundario.createUserWithEmailAndPassword(emailEmpleado, passwordTemp);
+                const nuevoUID = credencialUsuario.user.uid;
+
+                // 4. Guardar el registro en la colección 'usuarios' de Firestore
+                await db.collection('usuarios').doc(nuevoUID).set({
+                    uid: nuevoUID,
+                    empleadoID: empleadoID,
+                    nombre: nombreEmpleado,
+                    email: emailEmpleado,
+                    rol: rolSeleccionado,
+                    estatus: 'activo',
+                    requiereCambioPassword: true, //bandera para forzar el cambio de contraseña en el primer login del nuevo usuario
+                    fechaRegistro: firebase.firestore.FieldValue.serverTimestamp(),
+                    registradoPor: auth.currentUser.email
+                });
+
+                // 5. Cerramos sesión en la app secundaria
+                await authSecundario.signOut();
+
+                // 6. Redactar el mensaje con las credenciales
+                const mensaje = `Bienvenido ${nombreEmpleado}. \n\nUtiliza estas credenciales para ingresar al Sistema de Control de Asistencias:\n\n
+                Usuario: ${emailEmpleado}\nContraseña: ${passwordTemp}.`;
+
+
+                alert(`Cuenta creada exitosamente.\n\nPor favor, entrega esta contraseña al empleado: ${passwordTemp}`);
+                
+                textoCredenciales.value= mensaje;
+
+                // 7. Cambiar a la vista de exito
+                vistaFormCrearUsuario.classList.add('hidden');
+                vistaExitoCrearUsuario.classList.remove('hidden');
+                formOtorgarAcceso.reset();
+
+            } catch (error) {
+                console.error("Error al crear usuario:", error);
+                if (error.code === 'auth/email-already-in-use') {
+                    alert("Este empleado ya tiene una cuenta de acceso registrada.");
+                } else {
+                    alert("Ocurrió un error: " + error.message);
+                }
+            } finally {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = "Crear cuenta de usuario";
+            }
+        });
+    }
+
+    // Copiar al portapapeles
+    if(btnCopiarCredenciales) {
+        btnCopiarCredenciales.addEventListener('click', () => {
+            textoCredenciales.select();
+            navigator.clipboard.writeText(textoCredenciales.value).then(() => {
+                textoBtnCopiar.textContent = 'Mensaje copiado';
+                setTimeout(() => {
+                    textoBtnCopiar.textContent = "Copiar mensaje";
+                }, 2000);            
+        }).catch(err => {
+            console.error("Error al copiar: ", err);
+            alert("No se pudo copiar el texto automáticamente.");
+        });
+    });
+    }
+
+    // Cargar y mostrar la tabla de Usuarios
+    window.cargarUsuarios = function() {
+        if (!tablaUsuariosBody) return;
+
+        db.collection('usuarios').onSnapshot((consulta) => {
+            tablaUsuariosBody.innerHTML = ''; 
+
+            if (consulta.empty) {
+                tablaUsuariosBody.innerHTML = `<tr><td colspan="5" class="table-empty-state">No hay usuarios registrados.</td></tr>`;
+                return;
+            }
+
+            consulta.forEach((doc) => {
+                const usuario = doc.data();
+                //filtro de seguridad para evitar que el administrador vea al usuario super-administrador en la tabla de usuarios
+                if (usuario.rol === 'super_admin') return;
+
+                const tr = document.createElement('tr');
+
+                const estatusTexto = usuario.estatus.charAt(0).toUpperCase() + usuario.estatus.slice(1);
+
+                tr.innerHTML = `
+                    <td><strong>${usuario.nombre}</strong></td>
+                    <td>${usuario.email}</td>
+                    <td>${usuario.rol}</td>
+                    <td><span class="estatus-${usuario.estatus}">${estatusTexto}</span></td>
+                    <td>
+                        <!-- Botones de acciones (programacion pendiente) -->
+                        <button class="btn-icon" title="Editar">
+                            <img src="recursos/icono-editar.svg" alt="Editar">
+                        </button>
+                    </td>
+                `;
+                tablaUsuariosBody.appendChild(tr);
+            });
+        }, (error) => {
+            console.error("Error al cargar usuarios:", error);
+        });
+    };
 
 
 });

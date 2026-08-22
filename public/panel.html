@@ -289,8 +289,35 @@
 
             <!-- SECCIÓN 3: GESTION DE USUARIOS -->
             <section id="seccion-usuarios" class="content-section">
-                <h2>Gestión de Usuarios</h2>
-                <p>Módulo en construcción...</p>
+                <header>
+                    <h2>Gestión de Usuarios (Accesos)</h2>    
+                </header>
+                
+                <div class="card-container">
+                    <div class="card-header-flex">
+                        <h3>Usuarios del Sistema</h3>
+                        <button id="btnAbrirModalAcceso" class="btn-primary btn-auto">+Otorgar acceso</button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Nombre (Empleado)</th>
+                                    <th>Correo de Acceso</th>
+                                    <th>Rol</th>
+                                    <th>Estatus</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaUsuariosBody">
+                                <tr>
+                                    <td colspan="5" class="table-empty-state">Cargando usuarios...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>                
             </section>
 
         </main>
@@ -354,6 +381,67 @@
         </div>
     </div>
 
+     <!-- MODAL PARA CREAR/DEFINIR USUARIOS (OTORGAR ROL DE USUARIO A EMPLEADOS) -->
+     <div id="modalOtorgarAcceso" class="modal-fondo hidden">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title">Otorgar acceso al sistema (Crear Usuario)</h3>
+                <button id="btnCerrarModalAcceso" class="btn-icon" title="Cerrar">
+                    <img src="recursos/icono-cerrar.svg" alt="Cerrar">
+                </button>    
+            </div>
+            <div class="modal-body">
+
+                <!-- VISTA 1: FORMULARIO -->
+                <div id="vistaFormCrearUsuario">
+                    <p class="form-instructions">
+                        Selecciona un empleado activo para darle el rol de usuario.
+                    </p>
+                    <form id="formOtorgarAcceso" class="admin-form">
+                        <div class="form-group">
+                            <label for="selectEmpleadoAcceso">Seleccionar Empleado *</label>
+                            <!-- En este select se inyectara con JS la lista de empleados activos -->
+                            <select id="selectEmpleadoAcceso" required>
+                                <option value="">Cargando empleados activos...</option>
+                            </select>
+                        </div>
+    
+                        <div class="form-group mt-20">
+                            <label for="usuarioRol">Rol a asignar *</label>
+                            <select id="usuarioRol" required>
+                                <option value="recepcionista">Recepcionista</option>
+                            </select>
+                        </div>
+    
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary btn-auto">Crear cuenta de usuario</button>
+                        </div>
+                    </form>                   
+                </div>
+
+                <!-- VISTA 2: EXITO Y CREDENCIALES (vista oculta por defecto) -->
+                <div id="vistaExitoCrearUsuario" class="text-center hidden">
+                    <div class="icono-exito-grande">
+                        <img src="recursos/icono-exito.svg" alt="Exito">
+                    </div>
+                    <h3 class="titulo-exito">¡Usuario registrado con éxito!</h3>
+                    <p class="form-instructions">Copia las credenciales y envialas al nuevo usuario.</p>
+
+                    <textarea id="textoCredenciales" class="usuario-password-temp" rows="7" readonly></textarea>
+
+                    <div class="form-actions justify-center">
+                        <button type="button" id="btnCopiarCredenciales" class="btn-secundario btn-auto btn-con-icono">
+                            <img src="recursos/icono-copiar.svg" alt="Copiar">
+                            <span id="textoBtnCopiar">Copiar mensaje</span>
+                        </button>
+                    </div>
+                </div>                
+
+            </div>            
+        </div>
+     </div>
+    
+    
     <script src="js/config.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
