@@ -636,7 +636,6 @@ legend {
 .btn-con-icono img {
     width: 18px;
     height: 18px;
-    filter: brightness(0) invert(1); /* Convierte el icono SVG a blanco */
 }
 
 /* Clases estructurales para el modal de la credencial */

@@ -76,12 +76,52 @@ document.addEventListener('DOMContentLoaded', () => {
             const result = await loginUser(email, password);
 
             if (result.success) {
-                // Login exitoso - Redirigir al panel
-                console.log('Login exitoso:', result.user.email);
-                // Redirigir después de un breve tiempo para mostrar el panel.html
-                setTimeout(() => {
-                    window.location.href = 'panel.html';
-                }, 300);
+                console.log('Login exitoso en Auth. Verificando rol en Firestore...');
+                const user = result.user;
+
+                try {
+                    // 1. Consultar el documento del usuario en Firestore
+                    const userDoc = await db.collection('usuarios').doc(user.uid).get();
+
+                    if(!userDoc.exists) {
+                        showError('Tu cuenta no esta registrada en la base de datos.');
+                        await logoutUser();
+                        setLoading(false);
+                        return;
+                    }
+
+                    const userData = userDoc.data();
+
+                    // 2. Verificar si esta activo
+                    if (userData.estatus !== 'activo') {
+                        showError('Tu cuenta esta inactiva o dada de baja.');
+                        await logoutUser();
+                        setLoading(false);
+                        return;
+                    }
+
+                    // 3. Verificar si requiere cambio de contrasena
+                    if (userData.requiereCambioPassword) {
+                        // ocultamos el error si lo hubiera y mostramos el modal
+                        hideError();
+                        document.getElementById('modalCambioPassword').classList.remove('hidden');
+
+                        // Guardamos los datos temporalmente para usarlos al guardar la contrasena
+                        window.usuarioPendiente = user;
+                        window.datosUsuarioPendiente = userData;
+                        return; //El flujo se detiene aqui hasta que cambie la contrasena
+                    }
+
+                    // 4. Enrutamiento por roles
+                    redirigirPorRol(userData.rol);
+
+                } catch (error) {
+                    console.error("Error al consultar Firestore: ", error);
+                    showError('Error al verificar permisos.');
+                    await logoutUser();
+                    setLoading(false);
+                }
+
             } else {
                 // Login no exitoso, Mostrar el error específico de Firebase
                 let userMessage = 'Error al iniciar sesión. Verifica tus credenciales.';
@@ -140,4 +180,66 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 100);
 
     console.log('Módulo de autenticación cargado correctamente');
+
+    // ============================================
+    // FUNCIÓN DE ENRUTAMIENTO
+    // ============================================
+    function redirigirPorRol(rol) {
+        if (rol === 'administrador' || rol === 'super_admin') {
+            window.location.replace('panel.html');
+        } else if (rol === 'recepcionista') {
+            window.location.replace('escaner.html');
+        } else {
+            showError('Rol no reconocido.');
+            logoutUser();
+            setLoading(false);
+        }
+    }
+
+    // ============================================
+    // LÓGICA DEL MODAL DE CAMBIO DE CONTRASEÑA
+    // ============================================
+    const formCambioPassword = document.getElementById('formCambioPassword');
+    const errorModalPassword = document.getElementById('errorModalPassword');
+
+    if (formCambioPassword) {
+        formCambioPassword.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const btnGuardar = document.getElementById('btnGuardarPassword');
+
+            if (newPassword !== confirmPassword) {
+                errorModalPassword.textContent = "Las contraseñas no coinciden.";
+                errorModalPassword.classList.add('visible');
+                return;
+            }
+
+            btnGuardar.disabled = true;
+            btnGuardar.textContent = "Actualizando...";
+
+            try {
+                // 1. Actualizar contraseña en Firebase Auth
+                await window.usuarioPendiente.updatePassword(newPassword);
+
+                // 2. Quitar la bandera en Firestore para que no se lo vuelva a pedir
+                await db.collection('usuarios').doc(window.usuarioPendiente.uid).update({
+                    requiereCambioPassword: firebase.firestore.FieldValue.delete()
+                });
+
+                // 3. Redirigir según su rol
+                redirigirPorRol(window.datosUsuarioPendiente.rol);
+
+            } catch (error) {
+                console.error("Error al actualizar contraseña:", error);
+                errorModalPassword.textContent = "Error al actualizar. Intenta de nuevo.";
+                errorModalPassword.classList.add('visible');
+                btnGuardar.disabled = false;
+                btnGuardar.textContent = "Guardar y Continuar";
+            }
+        });
+    }
+
+
 });

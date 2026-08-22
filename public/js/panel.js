@@ -918,11 +918,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const opcionSeleccionada = selectEmpleadoAcceso.options[selectEmpleadoAcceso.selectedIndex];
                 const empleadoID = opcionSeleccionada.value;
                 const emailEmpleado = opcionSeleccionada.getAttribute('data-email');
-                const nombreEmpleado = opcionSeleccionada.getAttribute('data-nombre');                
+                const nombreEmpleado = opcionSeleccionada.getAttribute('data-nombre');
                 const rolSeleccionado = document.getElementById('usuarioRol').value;
                 
-                //2. Genramos la contraseña temporal
-                const passwordTemp = inputPasswordTemp.value;
+                // 2. Generamos la contraseña temporal 
+                const passwordTemp = generarPasswordTemporal();
 
                 // 3. Crear usuario en Firebase Authentication (Usando la App Secundaria)
                 const credencialUsuario = await authSecundario.createUserWithEmailAndPassword(emailEmpleado, passwordTemp);
@@ -936,7 +936,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     email: emailEmpleado,
                     rol: rolSeleccionado,
                     estatus: 'activo',
-                    requiereCambioPassword: true, //bandera para forzar el cambio de contraseña en el primer login del nuevo usuario
+                    requiereCambioPassword: true, // Bandera para forzar el cambio en el primer login
                     fechaRegistro: firebase.firestore.FieldValue.serverTimestamp(),
                     registradoPor: auth.currentUser.email
                 });
@@ -945,15 +945,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 await authSecundario.signOut();
 
                 // 6. Redactar el mensaje con las credenciales
-                const mensaje = `Bienvenido ${nombreEmpleado}. \n\nUtiliza estas credenciales para ingresar al Sistema de Control de Asistencias:\n\n
-                Usuario: ${emailEmpleado}\nContraseña: ${passwordTemp}.`;
+                const mensaje = `Bienvenid@, ${nombreEmpleado}.\n\nUtiliza estas credenciales para ingresar al sistema de control de asistencia:\n\nUsuario: ${emailEmpleado}\nContraseña: ${passwordTemp}\n\nNota: Deberás cambiar tu contraseña en tu primer inicio de sesión.`;
+                textoCredenciales.value = mensaje;
 
-
-                alert(`Cuenta creada exitosamente.\n\nPor favor, entrega esta contraseña al empleado: ${passwordTemp}`);
-                
-                textoCredenciales.value= mensaje;
-
-                // 7. Cambiar a la vista de exito
+                // 7. Cambiar a la vista de éxito
                 vistaFormCrearUsuario.classList.add('hidden');
                 vistaExitoCrearUsuario.classList.remove('hidden');
                 formOtorgarAcceso.reset();

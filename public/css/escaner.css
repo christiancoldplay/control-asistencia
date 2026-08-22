@@ -149,6 +149,23 @@
     display: block;
 }
 
+.btn-logout {
+    width: 100%;
+    padding: 10px;
+    background: none;
+    border: 1px solid var(--color-error);
+    color: var(--color-error);
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.2s;
+}
+
+.btn-logout:hover {
+    background: var(--color-error);
+    color: var(--color-white);
+}
+
 /* ============================================
    MENSAJES DEL LECTOR QR
    ============================================ */
