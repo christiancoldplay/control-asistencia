@@ -45,7 +45,10 @@
                 <div id="vistaListaEmpleados" class="card-container">
                     <div class="card-header-flex">
                         <h3>Directorio de Empleados</h3>
-                        <button id="btnMostrarFormulario" class="btn-primary btn-auto">+ Nuevo Empleado</button>
+                        <div class="header-acciones">
+                            <input type="text" id="buscadorEmpleados" class="buscador-input" placeholder="Buscar empleado...">
+                            <button id="btnMostrarFormulario" class="btn-primary btn-auto">+ Nuevo Empleado</button>
+                        </div>
                     </div>
                     
                     <div class="table-responsive">
@@ -284,8 +287,78 @@
 
             <!-- SECCIÓN 2: REPORTES Y CONSULTAS -->
             <section id="seccion-reportes" class="content-section">
-                <h2>Reportes y Consultas</h2>
-                <p>Módulo en construcción...</p>
+                <header class="section-header">
+                    <h2>Reportes y Consultas de Incidencias</h2>
+                </header>
+                
+                <!-- TARJETA DE FILTROS -->
+                <div class="card-container">
+                    <h3>Filtros del Reporte</h3>
+                    <form id="formFiltrosReporte" class="admin-form">
+                        <div class="form-grid align-bottom">
+                            <div class="form-group">
+                                <label for="filtroFechaInicio">Fecha Inicio *</label>
+                                <input type="date" id="filtroFechaInicio" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="filtroFechaFin">Fecha Fin *</label>
+                                <input type="date" id="filtroFechaFin" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="filtroDepartamento">Departamento</label>
+                                <select id="filtroDepartamento">
+                                    <option value="todos">Todos los departamentos</option>
+                                    <option value="Desarrollo Empresarial">Desarrollo Empresarial</option>
+                                    <option value="Administracion">Administración</option>
+                                    <option value="Tutoria">Tutoría</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <button type="submit" class="btn-primary" style="width: 100%;">Generar Reporte</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- TARJETA DE RESULTADOS (Oculta hasta que se genere el reporte) -->
+                <div id="contenedorResultadosReporte" class="card-container mt-20 hidden">
+                    <div class="card-header-flex">
+                        <h3 id="tituloResultadosPeriodo">Resultados del Periodo</h3>
+                        <div class="acciones-exportar">
+                            <button id="btnExportarPDF" class="btn-secundario btn-auto btn-con-icono">
+                                <img src="recursos/icono-pdf.svg" alt="PDF">
+                                <span>Exportar PDF</span>
+                            </button>
+                            <button id="btnExportarCSV" class="btn-secundario btn-auto btn-con-icono">
+                                <img src="recursos/icono-csv.svg" alt="CSV">
+                                <span>Exportar CSV</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Empleado</th>
+                                    <th>Depto.</th>
+                                    <th>Faltas</th>
+                                    <th>Retardos</th>
+                                    <th>Vacaciones</th>
+                                    <th>Permisos</th>
+                                    <th>Horas Lab.</th>
+                                    <th>Detalles</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaReportesBody">
+                                <!-- JS inyectará los resultados aquí -->
+                            </tbody>
+                        </table>
+                        <p class="form-instructions mt-20">
+                            * Los empleados resaltados en <span class="alerta-texto">rojo</span> acumulan 3 o más faltas injustificadas.
+                        </p>
+                    </div>
+                </div>
             </section>
 
             <!-- SECCIÓN 3: GESTION DE USUARIOS -->
@@ -297,7 +370,10 @@
                 <div class="card-container">
                     <div class="card-header-flex">
                         <h3>Usuarios del Sistema</h3>
-                        <button id="btnAbrirModalAcceso" class="btn-primary btn-auto">+Otorgar acceso</button>
+                        <div class="header-acciones">
+                            <input type="text" id="buscadorUsuarios" class="buscador-input" placeholder="Buscar usuario...">
+                            <button id="btnAbrirModalAcceso" class="btn-primary btn-auto">+Otorgar acceso</button>
+                        </div>
                     </div>
 
                     <div class="table-responsive">

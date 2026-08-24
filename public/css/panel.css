@@ -700,3 +700,54 @@ legend {
     line-height: 1.5;
     resize: none;
 }
+
+/* ============================================
+   MÓDULO DE REPORTES
+   ============================================ */
+
+.align-bottom {
+    align-items: flex-end;
+}
+
+
+.acciones-exportar {
+    display: flex;
+    gap: 10px;
+}
+
+
+.alerta-faltas {
+    background-color: #fff5f5 !important; 
+    border-left: 4px solid var(--color-error);
+}
+
+.alerta-texto {
+    color: var(--color-error);
+    font-weight: bold;
+}
+
+/* ============================================
+   BUSCADORES Y ACCIONES DE ENCABEZADO
+   ============================================ */
+/* Contenedor para alinear el buscador y el botón */
+.header-acciones {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+/* Diseño del input del buscador en tiempo real */
+.buscador-input {
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    font-family: var(--font);
+    font-size: 14px;
+    width: 250px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.buscador-input:focus {
+    border-color: var(--color-secondary);
+}

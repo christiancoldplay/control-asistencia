@@ -360,7 +360,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     tipoJornada: document.getElementById('empTipoJornada').value,
                     observaciones: document.getElementById('empObservaciones').value.trim(),
                     
-                    horario: obtenerHorarioFormulario()              
+                    horario: obtenerHorarioFormulario(),
+                    sucursal: 'Aguascalientes Sur'              
                 };
 
                 // Si es un empleado nuevo (no Edicion), le agregamos los campos base al objeto "Empleado" que se enviara a firestore
@@ -403,7 +404,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!tablaEmpleadosBody) return;//si no existe la tabla, sale de la funcion
 
         // onSnapshot escucha la base de datos de Firestore en tiempo real
-        db.collection('empleados').onSnapshot((querySnapshot) => {
+        db.collection('empleados').orderBy('nombre', 'asc').onSnapshot((querySnapshot) => {
             
             // Elimina el contenido actual de la tabla
             tablaEmpleadosBody.innerHTML = ''; 
@@ -987,7 +988,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.cargarUsuarios = function() {
         if (!tablaUsuariosBody) return;
 
-        db.collection('usuarios').onSnapshot((consulta) => {
+        db.collection('usuarios').orderBy('nombre', 'asc').onSnapshot((consulta) => {
             tablaUsuariosBody.innerHTML = ''; 
 
             if (consulta.empty) {
@@ -1001,7 +1002,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (usuario.rol === 'super_admin') return;
 
                 const tr = document.createElement('tr');
-
                 const estatusTexto = usuario.estatus.charAt(0).toUpperCase() + usuario.estatus.slice(1);
 
                 tr.innerHTML = `
@@ -1010,10 +1010,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${usuario.rol}</td>
                     <td><span class="estatus-${usuario.estatus}">${estatusTexto}</span></td>
                     <td>
-                        <!-- Botones de acciones (programacion pendiente) -->
+                        <!-- Botones para editar (pendiente de programar) -->
                         <button class="btn-icon" title="Editar">
                             <img src="recursos/icono-editar.svg" alt="Editar">
                         </button>
+                        <!-- Boton para restablecer contrasena -->
+                        <button class="btn-icon" onclick="restablecerPasswordUsuario('${usuario.email}')" title="Restablecer Contraseña">
+                            <img src="recursos/icono-llave.svg" alt="Restablecer">
+                        </button>
+
                     </td>
                 `;
                 tablaUsuariosBody.appendChild(tr);
@@ -1021,6 +1026,79 @@ document.addEventListener('DOMContentLoaded', () => {
         }, (error) => {
             console.error("Error al cargar usuarios:", error);
         });
+    };
+
+    // ============================================
+    // BUSCADORES EN TIEMPO REAL (Live Filtering)
+    // ============================================
+    // Esta funcion implementa un buscador en tiempo real que permite al usuario filtrar filas de una tabla
+    // mientras escribe en un campo de texto.
+    // Parametros:
+    // - inputID = ID del elemento input que el usuario usara para buscar
+    // - tablaBodyID = El ID del elemento tbody de la tabla que se va a filtrar 
+    function configurarBuscador(inputId, tablaBodyId) {
+        const input = document.getElementById(inputId);
+        //si no existe el elemento buscado sale de la funcion
+        if (!input) return;
+        //escuchador de eventos que reacciona cuando el usuario escribe o borra texto en el input
+        input.addEventListener('input', function(e) {
+            //Se obtiene el termino de busqueda
+            // e.target = elemento input que disparo el evento
+            //.value = obtiene el texto actual del input
+            //.toLowerCase convierte el texto a minusculas para hacer la busqueda sin distincion.
+            const termino = e.target.value.toLowerCase();
+            //Se busca en todas las filas del tbody con el ID proporcionado
+            //devuelve un NodeList con todas las filas de la tabla
+            const filas = document.querySelectorAll(`#${tablaBodyId} tr`);
+            //Se recorren todas las filas de la tabla
+            filas.forEach(fila => {
+                //ignoramos las filas (vacias) con la clase table-empty-state
+                if (fila.querySelector('.table-empty-state')) return;
+                //obtiene todo el texto de la fila (todas las columnas) y lo convierte a minusculas
+                const textoFila = fila.textContent.toLowerCase();
+                //Si el termino esta contenido en el texto de la fila...
+                if (textoFila.includes(termino)) {
+                    //se muestra la fila 
+                    fila.classList.remove('hidden');
+                } else {
+                    //si no coincide, se oculta la fila
+                    fila.classList.add('hidden');
+                }
+            });
+        });
+    }
+    //Uso de la funcion configurarBuscador
+    configurarBuscador('buscadorEmpleados', 'tablaEmpleadosBody');
+    configurarBuscador('buscadorUsuarios', 'tablaUsuariosBody');
+
+    // ============================================
+    // 14. RESTABLECER CONTRASEÑA DE USUARIO
+    // ============================================
+    window.restablecerPasswordUsuario = async function(emailUsuario) {
+        // Mensaje de confirmación que sirve como documentación para pruebas
+        const mensajeConfirmacion = `¿Deseas enviar un enlace de recuperación de contraseña a:\n${emailUsuario}?\n\nNota de sistema: Para que esto funcione, el correo registrado debe ser un email real y accesible.`;
+        
+        const confirmar = confirm(mensajeConfirmacion);
+        if (!confirmar) return;
+
+        try {
+            // Firebase Auth envia el correo al usuario para gestionar la actualizacion de credenciales de acceso.
+            await auth.sendPasswordResetEmail(emailUsuario);
+            
+            alert(`Enlace enviado exitosamente a ${emailUsuario}.\n\nEl usuario debe revisar su bandeja de entrada (o carpeta de Spam) para definir su nueva contraseña.`);
+            
+        } catch (error) {
+            console.error("Error al enviar correo de recuperación:", error);
+            
+            // Manejo de errores
+            if (error.code === 'auth/user-not-found') {
+                alert("Error: No se encontró ningún usuario de acceso con este correo.");
+            } else if (error.code === 'auth/invalid-email') {
+                alert("Error: El formato del correo electrónico no es válido.");
+            } else {
+                alert("Ocurrió un error al intentar enviar el correo: " + error.message);
+            }
+        }
     };
 
 
