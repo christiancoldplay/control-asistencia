@@ -332,7 +332,7 @@ legend {
    TEXTOS DE AYUDA Y ESTADOS VACÍOS
    ============================================ */
 .form-instructions {
-    font-size: 13px;
+    font-size: 14px;
     color: var(--color-text-light);
     margin-bottom: 15px;
 }
@@ -750,4 +750,96 @@ legend {
 
 .buscador-input:focus {
     border-color: var(--color-secondary);
+}
+
+/* ============================================
+   MODAL DE DETALLES DE REPORTE
+   ============================================ */
+.modal-reporte-ancho {
+    max-width: 600px;
+}
+
+.reporte-detalle-encabezado {
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid var(--color-bg);
+}
+
+.reporte-nombre {
+    color: var(--color-primary);
+    font-size: 18px;
+    margin-bottom: 5px;
+}
+
+.reporte-periodo {
+    color: var(--color-text-light);
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.reporte-contenedor-incidencias {
+    margin-bottom: 20px;
+}
+
+/* Títulos de cada tipo de incidencia */
+.reporte-tipo-titulo {
+    color: var(--color-secondary);
+    font-size: 14px;
+    margin-top: 15px;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.reporte-lista {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Tarjeta individual de cada incidencia */
+.reporte-item {
+    background-color: #f8fafc;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 10px 15px;
+    margin-bottom: 8px;
+    font-size: 13px;
+}
+
+.reporte-item-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: var(--color-text);
+}
+
+.reporte-item-motivo {
+    color: var(--color-text-light);
+    font-style: italic;
+}
+
+/* Etiqueta para las horas afectadas */
+.badge-horas {
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+}
+
+/* Caja de observaciones generales */
+.reporte-observaciones-caja {
+    background-color: #fffbeb; 
+    border-left: 4px solid #f59e0b; 
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 20px;
+}
+
+.reporte-texto-obs {
+    font-size: 13px;
+    color: var(--color-text);
+    margin-top: 5px;
 }

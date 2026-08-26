@@ -518,7 +518,40 @@
         </div>
      </div>
     
-    
+    <!-- MODAL DE DETALLES DE REPORTE POR EMPLEADO -->
+    <div id="modalDetallesReporte" class="modal-fondo hidden">
+        <div class="modal-content modal-reporte-ancho">
+            <div class="modal-header">
+                <h3 class="modal-title">Detalle de Incidencias</h3>
+                <button id="btnCerrarModalReporte" class="btn-icon" title="Cerrar">
+                    <img src="recursos/icono-cerrar.svg" alt="Cerrar">
+                </button>
+            </div>
+            <div class="modal-body">
+                
+                <!-- Encabezado del Detalle -->
+                <div class="reporte-detalle-encabezado">
+                    <h4 id="detalleReporteNombre" class="reporte-nombre">Nombre del Empleado</h4>
+                    <p id="detalleReportePeriodo" class="reporte-periodo">Periodo: -- al --</p>
+                </div>
+                
+                <!-- Contenedor dinámico de Incidencias -->
+                <div id="contenedorIncidenciasDetalle" class="reporte-contenedor-incidencias">
+                    <!-- JavaScript inyectará aqui las incidencias -->
+                </div>
+
+                <!-- Observaciones Generales - Ocuto (solo visible si hay observaciones registradas) -->
+                <div id="contenedorObservacionesReporte" class="reporte-observaciones-caja hidden">
+                    <h4 class="detalle-seccion-titulo">Observaciones Generales</h4>
+                    <p id="textoObservacionesReporte" class="reporte-texto-obs"></p>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
+    <!--- SCRIPTS --->
     <script src="js/config.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>

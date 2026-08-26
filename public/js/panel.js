@@ -1203,7 +1203,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 // --- 7. Definicion de la tabla  de reporte ---
-
                 // - limpiamos la tabla
                 tablaReportesBody.innerHTML = '';
                 
@@ -1242,6 +1241,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </button>
                         </td>
                     `;
+                    // agrega la fila al final del <tbody>
                     tablaReportesBody.appendChild(tr);
                 });
 
@@ -1261,9 +1261,153 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Función vacía para el botón de detalles (La programaremos después)
-    window.verDetallesReporte = function(idEmpleado) {
-        alert("Próximamente: Aquí se abrirá el modal con el desglose exacto de fechas y motivos para este empleado.");
+    // ============================================
+    // DETALLES DEL REPORTE POR EMPLEADO (Modal)
+    // ============================================
+    // Funcion global que se ejecuta cuando el usuario hace clic en el boton "ver Detalles" en la tabla de resultados del reporte.
+    // recibe como parametro el id del documento de la coleccion empleados de firestore
+    // Flujo:
+    // 1. Obtiene las fechas del filtro del reporte.
+    // 2. Consulta los datos del empleado.
+    // 3. Consulta todas las incidencias del empleado en el periodo seleccionado.
+    // 4. Agrupa las incidencias por tipo y las muestra en un modal.
+    window.verDetallesReporte = async function(idEmpleado) {
+        try {
+            // -- 1. Leemos las fechas que el usuario selecciono en el formulario de reportes. --
+            const fechaInicioStr = document.getElementById('filtroFechaInicio').value;
+            const fechaFinStr = document.getElementById('filtroFechaFin').value;
+            // validamos que las fechas existan para poder continuar, sino sale de la funcion
+            if (!fechaInicioStr || !fechaFinStr) {
+                alert("Por favor, elige un rango de fechas, para generar el reporte.");
+                return;
+            }
+
+            // -- 2. Obtenemos los datos del empleado de Firestore --
+            const docEmp = await db.collection('empleados').doc(idEmpleado).get();
+            if (!docEmp.exists) return;
+            const empData = docEmp.data();
+
+            // -- 3. Llenar el encabezado del modal de Detalles del reporte del empleado --
+            // mostramos el nombre del empleado en el titulo del modal
+            document.getElementById('detalleReporteNombre').textContent = empData.nombre;
+            // mostramos el periodo seleccionado en el subtitulo del modal.
+            document.getElementById('detalleReportePeriodo').textContent = `Periodo: ${fechaInicioStr} al ${fechaFinStr}`;
+
+            // -- 4. Lógica de Observaciones Generales --
+            // obtenemos la referencia al elemento donde se muestran las observaciones y se guarda en la caja de observaciones
+            const cajaObservaciones = document.getElementById('contenedorObservacionesReporte');
+            // verificamos si el empleado tiene observaciones registradas en firestore
+            if (empData.observaciones && empData.observaciones.trim() !== "") {
+                //si hay observaciones, se muestran en el texto
+                document.getElementById('textoObservacionesReporte').textContent = empData.observaciones;
+                // mostramos la caja de observaciones
+                cajaObservaciones.classList.remove('hidden'); 
+            } else {
+                // si no hay observaciones, la caja se mantiene oculta
+                cajaObservaciones.classList.add('hidden'); 
+            }
+
+            // -- 5. Consultar las incidencias de este empleado en el periodo seleccionado --
+            // agregamos 'T00:00:00' para indicar la hora del inicio del dia
+            const fechaInicio = new Date(fechaInicioStr + "T00:00:00");
+            // agregarmos 'T23:29:59' para indicar la hora final del dia 
+            const fechaFin = new Date(fechaFinStr + "T23:59:59");
+
+            // realizamos una consulta a firestore en la coleccion 'incidencias'
+            // se obtienen datos filtrados considerando el id del empleado y el rango de fechas seleccionado
+            const snapshotIncidencias = await db.collection('incidencias')
+                .where('empleadoID', '==', idEmpleado)
+                .where('fechaInicio', '>=', firebase.firestore.Timestamp.fromDate(fechaInicio))
+                .where('fechaInicio', '<=', firebase.firestore.Timestamp.fromDate(fechaFin))
+                .get();
+
+            // obtenemos y preparamos el contenedor donde se mostraran las incidencias
+            const contenedorIncidencias = document.getElementById('contenedorIncidenciasDetalle');
+            contenedorIncidencias.innerHTML = '';// limpiamos el contenido del contenedor
+
+            // Si no hay incidencias en el periodo, mostramos un mensaje
+            if (snapshotIncidencias.empty) {
+                contenedorIncidencias.innerHTML = '<p class="table-empty-state">No hay incidencias registradas en este periodo.</p>';
+            } else {
+                // -- 6. Agrupar incidencias por tipo --
+                // creamo un objeto vacio para agrupar las incidencias
+                const incidenciasAgrupadas = {};
+                // recorremos cada incidencia encontrada en la consulta    
+                snapshotIncidencias.forEach(doc => {
+                    //extraemos los datos de la incidencia
+                    const inc = doc.data(); 
+                    // obtenemos el tipo de incidencia
+                    const tipo = inc.tipoIncidencia; 
+                    //si este tipo de incidencia aun no existe en el objeto agrupado, creamos un array vacio para el
+                    if (!incidenciasAgrupadas[tipo]) {
+                        incidenciasAgrupadas[tipo] = [];
+                    }
+                    // agregamos la incidencia al array de su tipo correspondiente
+                    incidenciasAgrupadas[tipo].push(inc);
+                });
+                
+                // --- 7. Generar el HTML agrupado para mostrar ---
+                // Object(entries) es un metodo JS que convierte un objeto en un array de pares [clave, valor]
+                // asi obtenemos un array con varios elementos con la estructura:
+                // [ ['clave1', [{tipo1:valor, fecha:valor}, {tipo2:valor, fecha:valor}]], ['clave2',[{...},{...}]],... ]
+                for (const [tipo, lista] of Object.entries(incidenciasAgrupadas)) {
+                    // formatear el titulo del tipo, reemplazamos guion bajo por espacio. Es mas legible.
+                    // (ej. "falta_injustificada" -> "falta injustificada")
+                    const tituloTipo = tipo.replace(/_/g, ' ');
+
+                    // Construccion del HTML del grupo
+                    // Iniciamos el HTML con el titulo del tipo y el numero de incidencias
+                    let htmlGrupo = `<h4 class="reporte-tipo-titulo">${tituloTipo} (${lista.length})</h4>`;
+                    htmlGrupo += `<ul class="reporte-lista">`;// abrimos la lista
+
+                    // Recorremos cada incidencia del grupo
+                    lista.forEach(inc => {
+                        // convertimos la fecha (Timestamp/Firestore) a objeto Date
+                        const fechaObj = inc.fechaInicio.toDate();
+                        // formeateamos la fecha al formato DD/MM/YYYY
+                        const fechaFormateada = fechaObj.toLocaleDateString('es-MX');
+                        // obtenemos el motivo de la incidencia o un mensaje 
+                        const motivo = inc.motivo || 'Sin motivo registrado';
+                        // mostramos las horas afectadas o 'N/A' si no hay
+                        const horas = inc.horasAfectadas ? `${inc.horasAfectadas} hrs afectadas` : 'N/A';
+
+                        // -- Construir la tarjeta de la incidencia --
+                        // creamos una tajeta individual para cada incidencia
+                        htmlGrupo += `
+                            <li class="reporte-item">
+                                <div class="reporte-item-header">
+                                    <span>Fecha: ${fechaFormateada}</span>
+                                    <span class="badge-horas">${horas}</span>
+                                </div>
+                                <div class="reporte-item-motivo">Motivo: ${motivo}</div>
+                            </li>
+                        `;
+                    });
+
+                    htmlGrupo += `</ul>`; // cerramos la lista 
+                    // agregamos el HTML del grupo al contenedor de incidencias
+                    contenedorIncidencias.innerHTML += htmlGrupo;
+                }
+            }
+
+            // -- 8. Mostrar el Modal --
+            // removemos la clase hidden del modal para hacerlo visible
+            document.getElementById('modalDetallesReporte').classList.remove('hidden');
+
+        } catch (error) {
+            // -- Manejo de errores --
+            console.error("Error al cargar detalles del reporte:", error);
+            alert("Ocurrió un error al consultar las incidencias.");
+        }
     };
+
+    // --- Evento para cerrar el modal de Detalles del reporte ---
+    const btnCerrarModalReporte = document.getElementById('btnCerrarModalReporte');
+    if (btnCerrarModalReporte) {
+        btnCerrarModalReporte.addEventListener('click', () => {
+            document.getElementById('modalDetallesReporte').classList.add('hidden');
+        });
+    }
+
 
 });
