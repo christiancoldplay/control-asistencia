@@ -1101,5 +1101,169 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // ============================================
+    // 15. MÓDULO DE REPORTES Y CONSULTAS
+    // ============================================
+    //Objetivo: Generar un reporte de incidencias (faltas, retardos, vacaciones, permisos) de empleados activos en un rango de fechas seleccionado.
+    // --- Referencias al DOM (variables globales del modulo)---
+    const formFiltrosReporte = document.getElementById('formFiltrosReporte');
+    const contenedorResultadosReporte = document.getElementById('contenedorResultadosReporte');
+    const tablaReportesBody = document.getElementById('tablaReportesBody');
+    const tituloResultadosPeriodo = document.getElementById('tituloResultadosPeriodo');
+
+    // --- Escuchador del formulario ---
+    if (formFiltrosReporte) {
+        formFiltrosReporte.addEventListener('submit', async (e) => {
+            e.preventDefault(); // Evita recarga de la pagina 
+            // --- Referencias al DOM (Variables locales al evento)
+            const btnSubmit = formFiltrosReporte.querySelector('button[type="submit"]');
+            const fechaInicioStr = document.getElementById('filtroFechaInicio').value;
+            const fechaFinStr = document.getElementById('filtroFechaFin').value;
+            const deptoSeleccionado = document.getElementById('filtroDepartamento').value;
+
+            // 1. Validación de Fechas
+            // La fecha de inicio no puede ser mayor a la fecha de fin
+            if (new Date(fechaInicioStr) > new Date(fechaFinStr)) {
+                alert("La Fecha de Inicio no puede ser mayor a la Fecha de Fin.");
+                return;
+            }
+
+            // --- Feedback visual al usuario ---
+            // Deshabilitamos el boton y cambiamos su texto para indicar que el proceso esta en ejecucion y evitar doble clic.
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = "Calculando...";
+            tablaReportesBody.innerHTML = '<tr><td colspan="8" class="table-empty-state">Analizando base de datos...</td></tr>';
+            contenedorResultadosReporte.classList.remove('hidden');
+
+            try {
+                // --- 2. Preparar fechas para Firestore ---
+                // - Convertir fechas de texto(string) a objetos Date de Firestore
+                // - Concatenamos la hora para abarcar el día completo y evitar problemas de zona horaria.
+                const fechaInicio = new Date(fechaInicioStr + "T00:00:00"); // JS lo interpreta como la hora de inicio del dia
+                const fechaFin = new Date(fechaFinStr + "T23:59:59"); // JS lo interpreta como el ultimo segundo del dia (fin del dia)
+
+                // --- 3. Consultar empleados --- 
+                // - consultamos empleados con estatus activo
+                let consultaEmpleados = db.collection('empleados').where('estatus', '==', 'activo');
+                // - si el usuario selecciono un departamento especifico, se filtra por el seleccionado
+                if (deptoSeleccionado !== 'todos') {
+                    consultaEmpleados = consultaEmpleados.where('departamento', '==', deptoSeleccionado);
+                }
+                // - ejecutamos la consulta en Firestore
+                const snapshotEmpleados = await consultaEmpleados.get();
+                // - si no hay empleados activos, se muestra mensaje y sale de la funcion
+                if (snapshotEmpleados.empty) {
+                    tablaReportesBody.innerHTML = '<tr><td colspan="8" class="table-empty-state">No se encontraron empleados activos para estos filtros.</td></tr>';
+                    return;
+                }
+
+                // --- 4. Crear el "Diccionario" en memoria ---
+                // usamos el objeto reporteData para agrupar los datos de cada empleado en objetos (uno por cada empleado).
+                // Estructura: { empleadoID { nombre:valor, departamento:valor, retardos:valor,...}}
+                const reporteData = {};
+                snapshotEmpleados.forEach(doc => {
+                    const emp = doc.data();
+                    reporteData[doc.id] = {
+                        nombre: emp.nombre,
+                        departamento: emp.departamento,
+                        faltas: 0,
+                        retardos: 0,
+                        vacaciones: 0,
+                        permisos: 0,
+                        horasLaboradas: 0 // PENDIENTE DE IMPLEMENTACION
+                    };
+                });
+
+                // --- 5. Consultar incidencias de documentos en Firestore en el rango de fechas seleccionado por el usuario ---
+                const snapshotIncidencias = await db.collection('incidencias')
+                    .where('fechaInicio', '>=', firebase.firestore.Timestamp.fromDate(fechaInicio))
+                    .where('fechaInicio', '<=', firebase.firestore.Timestamp.fromDate(fechaFin))
+                    .get();
+
+                // --- 6. Cruzar los datos (Sumar incidencias a cada empleado segun corresponda)
+                // se recorre cada incidencia, y si el empleado (empID) esta en el diccionario(reporteData), se suma +1 al tipo de incidencia que corresponda
+                snapshotIncidencias.forEach(doc => {
+                    const incidencia = doc.data();
+                    const empID = incidencia.empleadoID;
+                    
+                    // Solo sumamos si el empleado (empID) está en el diccionario reporteData
+                    if (reporteData[empID]) {
+                        const tipo = incidencia.tipoIncidencia;
+                        
+                        if (tipo === 'falta_injustificada' || tipo === 'falta_justificada') {
+                            reporteData[empID].faltas++;
+                        } else if (tipo === 'retardo_injustificado' || tipo === 'retardo_justificado') {
+                            reporteData[empID].retardos++;
+                        } else if (tipo === 'vacaciones') {
+                            reporteData[empID].vacaciones++;
+                        } else if (tipo === 'permiso_con_goce' || tipo === 'permiso_sin_goce') {
+                            reporteData[empID].permisos++;
+                        }
+                    }
+                });
+
+                // --- 7. Definicion de la tabla  de reporte ---
+
+                // - limpiamos la tabla
+                tablaReportesBody.innerHTML = '';
+                
+                // Convertir el diccionario a un Array para poder ordenarlo alfabéticamente
+                // - Object.entries(reporteData) convierte un objeto en un array de pares [clave, valor]. 
+                // EJ: [ [ id (clave), {propiedad1: valor, propiedad2: valor, ...}]]
+                // - .map(([id, datos]) => ({ id, ...datos })) transforma cada par clave, valor en un objeto plano, combina el ID y los datos 
+                // se obtiene un array de objetos. 
+                // EJ: [ {id:valor, propiedad1:valor, propiedad2:valor,...}, { id2:valor, propiedad1:valor, propiedad2:valor,...} ]
+                const empleadosArray = Object.entries(reporteData).map(([id, datos]) => ({ id, ...datos }));
+                empleadosArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+                // por cada empleado creamos una fila
+                empleadosArray.forEach(emp => {
+                    const tr = document.createElement('tr');
+                    
+                    // Resalta toda la fila si el empleado tiene 3 o mas faltas
+                    if (emp.faltas >= 3) {
+                        tr.classList.add('alerta-faltas');
+                    }
+
+                    // Dibujar la tabla con los resultados del reporte
+                    // - se genera una fila (<tr>) por cada empleado y se agrega al cuerpo de la tabla (<tbody>)
+                    // - cada fila contiene: nombre, departamento, contadores de incidencias y un boton para ver detalles.
+                    tr.innerHTML = `
+                        <td><strong>${emp.nombre}</strong></td>
+                        <td>${emp.departamento}</td>
+                        <td class="${emp.faltas >= 3 ? 'alerta-texto' : ''}">${emp.faltas}</td> <!-- muestra el numero de faltas y lo resalta en rojo si es mayor a 3 -->
+                        <td>${emp.retardos}</td>
+                        <td>${emp.vacaciones}</td>
+                        <td>${emp.permisos}</td>
+                        <td>--:-- hrs</td> <!-- Pendiente -->
+                        <td>
+                            <button class="btn-icon" onclick="verDetallesReporte('${emp.id}')" title="Ver Detalle">
+                                <img src="recursos/icono-ver.svg" alt="Detalles">
+                            </button>
+                        </td>
+                    `;
+                    tablaReportesBody.appendChild(tr);
+                });
+
+                // Actualizar el título de la tarjeta agregando el rango de fechas filtrado
+                tituloResultadosPeriodo.textContent = `Resultados: ${fechaInicioStr} al ${fechaFinStr}`;
+
+            } catch (error) {
+                // --- Manejo de errores ---
+                console.error("Error al generar reporte:", error);
+                alert("Ocurrió un error al calcular los datos. Revisa la consola.");
+                tablaReportesBody.innerHTML = '<tr><td colspan="8" class="table-empty-state estatus-inactivo">Error al generar el reporte.</td></tr>';
+            } finally {
+                // Restaurar el botón
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = "Generar Reporte";
+            }
+        });
+    }
+
+    // Función vacía para el botón de detalles (La programaremos después)
+    window.verDetallesReporte = function(idEmpleado) {
+        alert("Próximamente: Aquí se abrirá el modal con el desglose exacto de fechas y motivos para este empleado.");
+    };
 
 });
