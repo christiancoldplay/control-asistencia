@@ -1409,5 +1409,163 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ============================================
+    // 16. EXPORTACIÓN DE REPORTES (PDF y CSV)
+    // ============================================
+    // Objetivo: Permite al usuario administrador descargar los resultados del reporte en formatos PDF o CSV.
+    // Flujo:
+    // 1. El usuario hace clic en el boton de exportacion (CSV o PDF).
+    // 2. Se verifica que la tabla de resultados exista y tenga datos.
+    // 3. Se procesan los datos segun el formato seleccionado.
+    // 4. Se genera el archivo y se descarga automaticamente en el navegador.
+    // 5. El archivo queda disponible en la carpeta de descargas del usuario.
+    // ========================================================================
+
+    // Referencias a los botones de exportacion que el usuario presionara 
+    const btnExportarPDF = document.getElementById('btnExportarPDF');
+    const btnExportarCSV = document.getElementById('btnExportarCSV');
+
+    // --- Exportar a formato CSV (compatible con Excel, Google Sheets,...) ---
+    // ========================================================================
+
+    // Funcion auxiliar para obtener la fecha actual en formato YYYY-MM-DD
+    function obtenerFechaDescarga() {
+        // new Date() crea un objeto con la fecha y hora del sistema en el momento que se ejecuta la funcion
+        const hoy = new Date();
+        const year = hoy.getFullYear(); // getFullYear() devuelve el año en 4 digitos.
+        // getMonth() devuelve el mes en base 0 (0=Enero, 11=Diciembre. Por eso se le suma 1 para que devuelva el mes actual).
+        // String() convierte el numero a texto.
+        // padStart(2, '0') asegura que tenga 2 digitos
+        const month = String(hoy.getMonth() + 1).padStart(2, '0');
+        //getDate() devuelve el dia del mes
+        // padStart(2, '0') asegura que tenga 2 digitos
+        const day = String(hoy.getDate()).padStart(2, '0');
+        return `${day}-${month}-${year}`;
+    }
+
+    if (btnExportarCSV) {
+        // agregamos un escuchador al boton de exportar CSV        
+        btnExportarCSV.addEventListener('click', () => {
+            // --- 1. Obtener la tabla de resultados. ---
+            // buscamos la tabla que contiene los resultados del reporte. 
+            const tabla = document.querySelector('#contenedorResultadosReporte .admin-table');
+            // si no existe la tabla salimos de la funcion
+            if (!tabla) return;
+            // --- 2. Inicializar variable para el contenido CSV. ---
+            // Esta variable almacenara todo el texto del archivo CSV
+            let csvContenido = "";
+            // -- 3. Obtener todas las filas de la tabla --
+            // obtenemos un Nodelist con todas las filas, incluyendo encabezado y datos.
+            const filas = tabla.querySelectorAll('tr');
+            // -- 4. Recorrer cada fila --
+            // se itera por cada elemento del NodeList            
+            filas.forEach(fila => {
+                // Se obtienen las celdas de la fila (considerando encabezado y datos)
+                const celdas = fila.querySelectorAll('th, td');
+                // Se crea un array para contener los valores de cada celda de la fila actual.
+                const filaArray = [];
+
+                // Recorremos las celdas, omitiendo la última columna (Detalles/Botones)
+                for (let i = 0; i < celdas.length - 1; i++) {
+                    // Limpiamos el texto de cada celda de espacios en blanco al inicio o final
+                    let texto = celdas[i].textContent.trim();
+                    // -- Manejar textos que contienen comas --
+                    // En CSV las comas son el separador de columnas. Si un texto contiene una coma, lo envolveremos
+                    // entre comillas, para que el programa que lea el CSV sepa que es un solo valor.
+                    if (texto.includes(',')) {
+                        texto = `"${texto}"`;
+                    }
+                    // push agrega el elemento al final de array.
+                    filaArray.push(texto);
+                }
+                // --- Unir los elementos del array con comas ---
+                // 'join' convierte el array en un string donde cada elemento esta separado por una coma. 
+                // esto crea una linea del archivo CSV.
+                // agregamos un salto de linea al final.
+                csvContenido += filaArray.join(",") + "\n";
+            });
+
+            // --- Crear el archivo CSV ---
+            // Blob es un objeto que representa datos binarios
+            // en este caso, el string 'csvContenido' convertido a texto UTF-8 
+            const blob = new Blob([csvContenido], { type: 'text/csv;charset=utf-8;' });
+            // -- crear una URL para el Blob ---
+            // URL.createObjectURL() crea una URL temporal que apunta al Blob
+            // Esta URL se puede usar para descargar el archivo
+            const url = URL.createObjectURL(blob);
+            // Crea un elemento <a> en memoria, este elemento no se muestra en la interfaz, solo existe en JS
+            const enlaceDescarga = document.createElement("a");
+            // Obtenemos la fecha y armamos el nombre del archivo
+            const fechaHoy = obtenerFechaDescarga();
+            // -- configurar el enlace para la descarga --
+            // href: la URL del Blob 
+            enlaceDescarga.setAttribute("href", url);
+            // download: el nombre que tendra el archivo al descargarse
+            enlaceDescarga.setAttribute("download", `Reporte_Incidencias_Linguatec_${fechaHoy}.csv`);
+            // agregar temporalmente el enlace al DOM, es necesario para poder hacer clic en el.
+            document.body.appendChild(enlaceDescarga);
+            // simular un clic para iniciar la descarga
+            enlaceDescarga.click();
+            // eliminar el enlace del DOM
+            document.body.removeChild(enlaceDescarga);
+        });
+    }
+
+    // --- Exportar a formato PDF ---
+    // ================================
+    
+    // Para generar el PDF usamos dos librerias:
+    // 1. jsPDF: Crea el documento PDF en memoria.
+    // 2. jspdf-autotable: plugin que convierte tablas HTML a tablas en PDF 
+    
+    if (btnExportarPDF) {
+        // agregamos un escuchador al boton exportar PDF
+        btnExportarPDF.addEventListener('click', () => {
+            // -- 1. Inicializar jsPDF --
+            // Creacion de nueva instancia de jsPDF con configuracion:
+            // formato vertical (p), milímetros (mm), tamaño carta(letter)
+            const { jsPDF } = window.jspdf;
+            const documentoPDF = new jsPDF('p', 'mm', 'letter');
+            // -- 2. Extraemos el texto que muestra el rango de fechas filtrado del reporte. --          
+            const periodoTexto = document.getElementById('tituloResultadosPeriodo').textContent;
+
+            // -- 3. Configuración del encabezado del PDF. --
+            documentoPDF.setFontSize(16);
+            documentoPDF.setTextColor(26, 58, 92); 
+            // x=14: margen izquierdo, y=20: margen desde arriba
+            documentoPDF.text("Linguatec - Reporte de Incidencias", 14, 20);
+
+            // Configuracion del subtitulo
+            documentoPDF.setFontSize(11);
+            documentoPDF.setTextColor(100, 100, 100);
+            documentoPDF.text(periodoTexto, 14, 28);
+
+            // -- 4. Convertir la tabla HTML a tabla PDF y dibujarla. --
+            // Usamos el plugin autoTable de jsPDF para convertir la tabla HTML a tabla PDF y dibujarla.
+            documentoPDF.autoTable({
+                // autoTable buscara la tabla con ese selector
+                html: '#contenedorResultadosReporte .admin-table',
+                startY: 35, // posicion donde comenzara la tabla (35mm desde arriba)
+                theme: 'striped', //alterna colores entre filas para mejorar legibilidad
+                headStyles: { fillColor: [26, 58, 92] }, // Personalizacion del encabezado de la tabla
+                // Especificamos manualmente las columnas que se quieren mostrar en el PDF
+                // Omitimos la columna de acciones (acciones) porque no tiene sentido en el PDF, solo en la interfaz web.
+                columns: [
+                    { header: 'Empleado', dataKey: 0 },
+                    { header: 'Depto.', dataKey: 1 },
+                    { header: 'Faltas', dataKey: 2 },
+                    { header: 'Retardos', dataKey: 3 },
+                    { header: 'Vacaciones', dataKey: 4 },
+                    { header: 'Permisos', dataKey: 5 },
+                    { header: 'Horas Lab.', dataKey: 6 }
+                ]
+            });
+
+            // Obtenemos la fecha y definimos el nombre del archivo PDF
+            const fechaHoy = obtenerFechaDescarga();
+            documentoPDF.save(`Reporte_Incidencias_Linguatec_${fechaHoy}.pdf`);
+        });
+    }
+
 
 });
