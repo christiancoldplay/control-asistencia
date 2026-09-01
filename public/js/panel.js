@@ -259,20 +259,28 @@ document.addEventListener('DOMContentLoaded', () => {
         
         filas.forEach(fila => {
             const checkbox = fila.querySelector('.dia-checkbox');
-            if (checkbox && checkbox.checked) {
+            if (checkbox) {
                 const dia = checkbox.value;
-                horario[dia] = {
-                    //inicia construccion del objeto horario con sus claves y valores respectivas por dia seleccionado
-                    // usamos ?. para evitar que la app se rompa si falta un input en el HTML
-                    entrada: fila.querySelector('.hora-entrada')?.value || "",
-                    salida: fila.querySelector('.hora-salida')?.value || "",
-                    omitirDescanso: fila.querySelector('.omitir-descanso-cb')?.checked || false,
-                    inicioDescanso: fila.querySelector('.hora-descanso')?.value || "",
-                    duracionDescansoMinutos: parseInt(fila.querySelector('.min-descanso')?.value) || 0
-                };
+
+                if (checkbox.checked) {
+                    //si el dia se labora, guardamos sus horas
+                    horario[dia] = {
+                        //inicia construccion del objeto horario con sus claves y valores respectivas por dia seleccionado
+                        // usamos ?. para evitar que la app se rompa si falta un input en el HTML
+                        entrada: fila.querySelector('.hora-entrada')?.value || "",
+                        salida: fila.querySelector('.hora-salida')?.value || "",
+                        omitirDescanso: fila.querySelector('.omitir-descanso-cb')?.checked || false,
+                        inicioDescanso: fila.querySelector('.hora-descanso')?.value || "",
+                        duracionDescansoMinutos: parseInt(fila.querySelector('.min-descanso')?.value) || 0
+                    };
+                }else{
+                    // Si el dia no se labora, le ordenamos a Firebase que lo elimine del documento
+                    horario[dia] = firebase.firestore.FieldValue.delete();
+                }
             }
         });
-        return horario;//retorna el objeto horario completo del empleado
+        //retorna el objeto horario completo del empleado
+        return horario;
     }
 
     // --- funcion para validar inputs del formulario, para filtrar datos de entrada ---
@@ -744,16 +752,23 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const doc = await db.collection('empleados').doc(id).get();
             if (!doc.exists) return;
-            const emp = doc.data();//contiene los datos del empleado indicado con el id
+            const emp = doc.data();
 
             const modalBody = document.getElementById('modalBodyDetalles');
             
+            // Definimos el orden cronologico de los dias como se deben mostrar
+            const ordenDias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
             // Formatear el horario
             let horarioHTML = "<ul class='detalle-horario-lista'>";
             if (emp.horario) {
-                for (const [dia, horas] of Object.entries(emp.horario)) {
-                    horarioHTML += `<li><strong>${dia.toUpperCase()}:</strong> ${horas.entrada} a ${horas.salida} (Descanso: ${horas.duracionDescansoMinutos} min)</li>`;
-                }
+                //recorremos el array del orden de los dias definido
+                ordenDias.forEach(dia => {
+                    // si el empleado tinen un horario guardado para ese dia, se imprime
+                    if (emp.horario[dia]) {
+                        const horas = emp.horario[dia];
+                        horarioHTML += `<li><strong>${dia.toUpperCase()}:</strong> ${horas.entrada} a ${horas.salida}. Descanso: ${horas.inicioDescanso} (${horas.duracionDescansoMinutos} mins.)</li>`;
+                    }
+                });
             }
             horarioHTML += "</ul>";
             //proteccion del estatus por si es undefined
@@ -773,31 +788,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="detalle-info">
 
                         <h4 class="detalle-seccion-titulo">Datos Personales</h4>
-                        <p><strong>Código:</strong> ${emp.codigo}</p>
-                        <p><strong>Nombre:</strong> ${emp.nombre}</p>
-                        <p><strong>Email:</strong> ${emp.email}</p>
-                        <p><strong>Teléfono:</strong> ${emp.telefono}</p>
-                        <p><strong>RFC:</strong> ${emp.rfc}</p>
-                        <p><strong>CURP:</strong> ${emp.curp}</p>
-                        <p><strong>NSS(IMSS):</strong> ${emp.numIMSS}</p>
+                        <p><strong>Código:</strong> ${emp.codigo || 'No registrado'}</p>
+                        <p><strong>Nombre:</strong> ${emp.nombre || 'No registrado'}</p>
+                        <p><strong>Email:</strong> ${emp.email || 'No registrado'}</p>
+                        <p><strong>Teléfono:</strong> ${emp.telefono || 'No registrado'}</p>
+                        <p><strong>RFC:</strong> ${emp.rfc || 'No registrado'}</p>
+                        <p><strong>CURP:</strong> ${emp.curp || 'No registrado'}</p>
+                        <p><strong>NSS(IMSS):</strong> ${emp.numIMSS || 'No registrado'}</p>
 
                         <h4 class="detalle-seccion-titulo">Datos Laborales</h4>
-                        <p><strong>Departamento:</strong> ${emp.departamento}</p>
-                        <p><strong>Cargo:</strong> ${emp.cargo}</p>
-                        <p><strong>Fecha Ingreso:</strong> ${emp.fechaIngreso}</p>
-                        <p><strong>Jornada:</strong> ${emp.jornada} hrs (${emp.tipoJornada})</p>
+                        <p><strong>Departamento:</strong> ${emp.departamento || 'No registrado'}</p>
+                        <p><strong>Cargo:</strong> ${emp.cargo || 'No registrado'}</p>
+                        <p><strong>Fecha Ingreso:</strong> ${emp.fechaIngreso || 'No registrado'}</p>
+                        <p><strong>Jornada:</strong> ${emp.jornada} hrs (${emp.tipoJornada || 'No registrado'})</p>
                         <p><strong>Saldo horas extra:</strong> ${emp.saldoHorasExtra || 0} hrs</p>                        
                         
                         <h4 class="detalle-seccion-titulo">Datos Bancarios</h4>
-                        <p><strong>Banco:</strong> ${emp.banco}</p>
-                        <p><strong>Cuenta:</strong> ${emp.cuenta}</p>
-                        <p><strong>CLABE:</strong> ${emp.clabe}</p>
+                        <p><strong>Banco:</strong> ${emp.banco || 'No registrado'}</p>
+                        <p><strong>Cuenta:</strong> ${emp.numCuenta || 'No registrado'}</p>
+                        <p><strong>CLABE:</strong> ${emp.clabe || 'No registrado'}</p>
 
                         <h4 class="detalle-seccion-titulo">Horario Laboral</h4>
                         ${horarioHTML}
                         
                         <h4 class="detalle-seccion-titulo">Observaciones</h4>
-                        <p>${emp.observaciones || ''}</p>                        
+                        <p>${emp.observaciones || 'Ninguna observacion registrada.'}</p>                        
                         
                     </div>
                 </div>
@@ -1240,45 +1255,46 @@ document.addEventListener('DOMContentLoaded', () => {
             const deptoSeleccionado = document.getElementById('filtroDepartamento').value;
 
             // 1. Validación de Fechas
-            // La fecha de inicio no puede ser mayor a la fecha de fin
-            if (new Date(fechaInicioStr) > new Date(fechaFinStr)) {
+            // -- Preparar fechas para Firestore ---
+            // --- Convertir fechas de texto(string) a objetos Date de Firestore
+            // --- Concatenamos la hora para abarcar el día completo y evitar problemas de zona horaria.
+            const fechaInicio = new Date(fechaInicioStr + "T00:00:00");// JS lo interpreta como la hora de inicio del dia
+            const fechaFin = new Date(fechaFinStr + "T23:59:59");// JS lo interpreta como el ultimo segundo del dia (fin del dia)
+            
+            if (new Date(fechaInicio) > new Date(fechaFin)) {
                 alert("La Fecha de Inicio no puede ser mayor a la Fecha de Fin.");
                 return;
             }
 
-            // --- Feedback visual al usuario ---
             // Deshabilitamos el boton y cambiamos su texto para indicar que el proceso esta en ejecucion y evitar doble clic.
             btnSubmit.disabled = true;
             btnSubmit.textContent = "Calculando...";
             tablaReportesBody.innerHTML = '<tr><td colspan="8" class="table-empty-state">Analizando base de datos...</td></tr>';
             contenedorResultadosReporte.classList.remove('hidden');
 
-            try {
-                // --- 2. Preparar fechas para Firestore ---
-                // - Convertir fechas de texto(string) a objetos Date de Firestore
-                // - Concatenamos la hora para abarcar el día completo y evitar problemas de zona horaria.
-                const fechaInicio = new Date(fechaInicioStr + "T00:00:00"); // JS lo interpreta como la hora de inicio del dia
-                const fechaFin = new Date(fechaFinStr + "T23:59:59"); // JS lo interpreta como el ultimo segundo del dia (fin del dia)
-
-                // --- 3. Consultar empleados --- 
-                // - consultamos empleados con estatus activo
+            try {                
+ 
+                // --- 2. Consultar empleados --- 
+                // consultamos empleados con estatus activo
                 let consultaEmpleados = db.collection('empleados').where('estatus', '==', 'activo');
-                // - si el usuario selecciono un departamento especifico, se filtra por el seleccionado
+                // si el usuario selecciono un departamento especifico, se filtra por el seleccionado
                 if (deptoSeleccionado !== 'todos') {
                     consultaEmpleados = consultaEmpleados.where('departamento', '==', deptoSeleccionado);
                 }
-                // - ejecutamos la consulta en Firestore
+                // ejecutamos la consulta en Firestore
                 const snapshotEmpleados = await consultaEmpleados.get();
-                // - si no hay empleados activos, se muestra mensaje y sale de la funcion
+                // si no hay empleados activos, se muestra mensaje y sale de la funcion
                 if (snapshotEmpleados.empty) {
                     tablaReportesBody.innerHTML = '<tr><td colspan="8" class="table-empty-state">No se encontraron empleados activos para estos filtros.</td></tr>';
                     return;
                 }
 
-                // --- 4. Crear el "Diccionario" en memoria ---
-                // usamos el objeto reporteData para agrupar los datos de cada empleado en objetos (uno por cada empleado).
+                // --- 3. Crear el "Diccionario" en memoria y Calcular Minutos Base ---
+                // usamos el objeto 'reporteData' para agrupar los datos de cada empleado en objetos (uno por cada empleado).
                 // Estructura: { empleadoID { nombre:valor, departamento:valor, retardos:valor,...}}
                 const reporteData = {};
+                const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+
                 snapshotEmpleados.forEach(doc => {
                     const emp = doc.data();
                     reporteData[doc.id] = {
@@ -1288,17 +1304,39 @@ document.addEventListener('DOMContentLoaded', () => {
                         retardos: 0,
                         vacaciones: 0,
                         permisos: 0,
-                        horasLaboradas: 0 // PENDIENTE DE IMPLEMENTACION
+                        minutosLaborados: 0 
                     };
+
+                    // Calculamos los minutos base iterando dia por dia en el rango de fechas
+                    for (let d = new Date(fechaInicio); d <= fechaFin; d.setDate(d.getDate() + 1)) {
+                        const diaStr = diasSemana[d.getDay()];
+                        
+                        if (emp.horario && emp.horario[diaStr]) {
+                            const h = emp.horario[diaStr];
+                            if (h.entrada && h.salida) {
+                                const [entHora, entMin] = h.entrada.split(':').map(Number);
+                                const [salHora, salMin] = h.salida.split(':').map(Number);
+
+                                let minDia = ((salHora * 60) + salMin) - ((entHora * 60) + entMin);
+                                
+                                // Restamos el descanso si no está marcado como omitido
+                                if (!h.omitirDescanso) {
+                                    minDia -= (h.duracionDescansoMinutos || 0);
+                                }
+                                
+                                reporteData[doc.id].minutosLaborados += minDia;
+                            }
+                        }
+                    }
                 });
 
-                // --- 5. Consultar incidencias de documentos en Firestore en el rango de fechas seleccionado por el usuario ---
+                // --- 4. Consultar incidencias de documentos en Firestore en el rango de fechas seleccionado por el usuario ---
                 const snapshotIncidencias = await db.collection('incidencias')
                     .where('fechaInicio', '>=', firebase.firestore.Timestamp.fromDate(fechaInicio))
                     .where('fechaInicio', '<=', firebase.firestore.Timestamp.fromDate(fechaFin))
                     .get();
 
-                // --- 6. Cruzar los datos (Sumar incidencias a cada empleado segun corresponda)
+                // --- 5. Cruzar los datos (Sumar incidencias a cada empleado segun corresponda)
                 // se recorre cada incidencia, y si el empleado (empID) esta en el diccionario(reporteData), se suma +1 al tipo de incidencia que corresponda
                 snapshotIncidencias.forEach(doc => {
                     const incidencia = doc.data();
@@ -1307,7 +1345,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Solo sumamos si el empleado (empID) está en el diccionario reporteData
                     if (reporteData[empID]) {
                         const tipo = incidencia.tipoIncidencia;
-                        
+                        const minsAfectados = incidencia.horasAfectadas || 0;
+                        // contadores de la tabla
                         if (tipo === 'falta_injustificada' || tipo === 'falta_justificada') {
                             reporteData[empID].faltas++;
                         } else if (tipo === 'retardo_injustificado' || tipo === 'retardo_justificado') {
@@ -1317,11 +1356,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else if (tipo === 'permiso_con_goce' || tipo === 'permiso_sin_goce') {
                             reporteData[empID].permisos++;
                         }
+                        // tipos de incidencias (suma o restan minutos laborados)
+                        const tiposResta = ['falta_injustificada', 'retardo_injustificado', 'permiso_sin_goce', 'salida_anticipada'];
+                        const tiposSuma = ['hora_extra', 'recuperacion_horas', 'compensacion_hora_extra'];
+
+                        if (tiposResta.includes(tipo)) {
+                            reporteData[empID].minutosLaborados -= minsAfectados;
+                        } else if (tiposSuma.includes(tipo)) {
+                            reporteData[empID].minutosLaborados += minsAfectados;
+                        }
                     }
                 });
 
-                // --- 7. Definicion de la tabla  de reporte ---
-                // - limpiamos la tabla
+                // --- 6. Desarrollo de la tabla del reporte ---
+                // limpiamos la tabla
                 tablaReportesBody.innerHTML = '';
                 
                 // Convertir el diccionario a un Array para poder ordenarlo alfabéticamente
@@ -1342,6 +1390,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         tr.classList.add('alerta-faltas');
                     }
 
+                    // Formatear minutos a horas, minutos (HH:MM)
+                    const absMinutos = Math.abs(emp.minutosLaborados);
+                    const horas = Math.floor(absMinutos / 60);
+                    const minutos = absMinutos % 60;
+                    const signo = emp.minutosLaborados < 0 ? "-" : "";
+                    const horasFormateadas = `${signo}${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')} hrs`;
+
                     // Dibujar la tabla con los resultados del reporte
                     // - se genera una fila (<tr>) por cada empleado y se agrega al cuerpo de la tabla (<tbody>)
                     // - cada fila contiene: nombre, departamento, contadores de incidencias y un boton para ver detalles.
@@ -1352,7 +1407,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>${emp.retardos}</td>
                         <td>${emp.vacaciones}</td>
                         <td>${emp.permisos}</td>
-                        <td>--:-- hrs</td> <!-- Pendiente -->
+                        <td><strong>${horasFormateadas}</strong></td> 
                         <td>
                             <button class="btn-icon" onclick="verDetallesReporte('${emp.id}')" title="Ver Detalle">
                                 <img src="recursos/icono-ver.svg" alt="Detalles">
