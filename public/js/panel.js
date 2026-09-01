@@ -137,34 +137,69 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================
     // BLOQUEAR INPUTS DE HORARIO
     // ============================================
-    // Controla el estado de los inputs de una fila cuando se marca o desmarca el checkbox
-    // parametro: checkbox recibe el elemento html del checkbox que fue marcado/desmarcado
-    function controlInputsHorario(checkbox) {
-        // obtiene el elemento 'tr' (fila de tabla) padre mas cercano
-        const fila = checkbox.closest('tr');
-        // Selecciona todos los inputs de la fila que sean tipo time o number
-        // time = campos de hora (entrada, salida, inicio descanso)
-        // number = campo de minutos de descanso
-        const inputs = fila.querySelectorAll('input[type="time"], input[type="number"]');
-        // Recorre todos los inputs encontrados por fila
-        inputs.forEach(input => {
-            //cambia el valor de la propiedad disabled a false si el checkbox esta marcado, o bisceversa.
-            input.disabled = !checkbox.checked;
-            if (!checkbox.checked) input.value = ''; // Limpia el valor por seguridad de datos
-        });
+
+    //Controla si los campos de descanso se habilitan o deshabilitan
+    function controlInputsDescanso(checkboxOmitir) {
+        const fila = checkboxOmitir.closest('tr');
+        const inputInicio = fila.querySelector('.hora-descanso');
+        const inputMin = fila.querySelector('.min-descanso');
+        const diaLaborable = fila.querySelector('.dia-checkbox').checked;
+        
+        if (checkboxOmitir.checked || !diaLaborable) {
+            // Si se omite el descanso o no se labora el día, bloqueamos y limpiamos
+            inputInicio.disabled = true;
+            inputInicio.value = '';
+            inputMin.disabled = true;
+            inputMin.value = 0;
+        } else {
+            // Si se labora y NO se omite el descanso, habilitamos
+            inputInicio.disabled = false;
+            inputMin.disabled = false;
+        }
     }
 
-    // Asignamos el evento 'change' a todos los checkboxes al cargar la página
-    //busca en todo el documento html, todos los elementos html con la clase dia-checkbox
-    //devuelve un nodeList con los checkboxes
-    //forEach recorre uno por uno los checkboxes
-    // cb es el parametro que representa el checkbox actual
+    // Controla toda la fila cuando se marca/desmarca el dia laborable
+    function controlInputsHorario(checkboxDia) {
+        // obtiene el elemento 'tr' (fila de tabla) padre mas cercano
+        const fila = checkboxDia.closest('tr');
+        // Selecciona todos los inputs de la fila que sean tipo time o number
+        const inputsTiempo = fila.querySelectorAll('input[type="time"], input[type="number"]');
+        // obtiene la referencia al checkbox omitir descanso de la fila actual 
+        const checkboxOmitir = fila.querySelector('.omitir-descanso-cb');
+
+        if (!checkboxDia.checked) {
+            //Dia no laborable, bloqueamos todo
+            inputsTiempo.forEach(input => {
+                input.disabled = true;
+                input.value = '';
+            });
+            checkboxOmitir.disabled = true;
+            checkboxOmitir.checked = false;
+        }else {
+            // Dia laborable: habilitamos entrada, salida y el checkbox de omitir
+            fila.querySelector('.hora-entrada').disabled = false;
+            fila.querySelector('.hora-salida').disabled = false;
+            checkboxOmitir.disabled = false;
+
+            //Evaluamos los campos de descanso basandonos en el checkbox de omitir
+            controlInputsDescanso(checkboxOmitir);
+        }        
+    }
+
+    // -- Asignar eventos a los checkboxes al cargar la pagina --
+    //Busca en el documento HTML, todos los elementos con la clase 'dia-checkbox', devuelve un nodeList con los checkboxes,
+    //forEach recorre uno por uno los checkboxes. 'cb' es el parametro que representa el checkbox actual.
     document.querySelectorAll('.dia-checkbox').forEach(cb => {
-        //agrega un escuchador de eventos al checkbox
-        //el evento change se dispara cuando el usuario marca o desmarca el checkbox
+        //agrega un escuchador de eventos al checkbox. El evento 'change' se dispara cuando el usuario marca o desmarca el checkbox.
         //cuando pasa eso se ejecuta la funcion controlInputsHorario(cb)
         cb.addEventListener('change', () => controlInputsHorario(cb));
         controlInputsHorario(cb); // Ejecutamos una vez para inicializar el estado visual (gris)
+    });
+
+    // Busca en el documento HTML todos los elementos con la clase 'omitir-descanso-cb' y les asigna un escuchador de eventos
+    // para controlar los campos de descanso. La funcion 'controlInputsDescanso' se dispara cuando el usuario marca o desmarca el checkbox "omitir descanso"
+    document.querySelectorAll('.omitir-descanso-cb').forEach(cb => {
+        cb.addEventListener('change', () => controlInputsDescanso(cb));
     });
 
     // ===========================================
@@ -174,34 +209,47 @@ document.addEventListener('DOMContentLoaded', () => {
     const formRegistroEmpleado = document.getElementById('formRegistroEmpleado');
 
     //--- Funcion para calcular las horas seleccionadas de la tabla horario del empleado ---
+    // Objetivo: Sumar las horas laborales de los dias seleccionados en la tabla de horarios del empleado, 
+    // considerando horas de entrada, salida y descanso. Retorna el total de horas semanales. 
     function calcularHorasTabla() {
-        let totalMinutos = 0;
-        const filas = document.querySelectorAll('#tablaHorario tr');//todas las filas de tabla horario
-        
-        filas.forEach(fila => {//recorre cada fila
+        let totalMinutos = 0; 
+        //obtiene todas las filas de tabla horario
+        const filas = document.querySelectorAll('#tablaHorario tr');
+        // recorre cada fila (dia de la semana)
+        filas.forEach(fila => {
+            // busca el checkbox de la fila actual (dia)
             const checkbox = fila.querySelector('.dia-checkbox');
-            if (checkbox && checkbox.checked) {//verifica que el checkbox este marcado, sino itera
-                const entrada = fila.querySelector('.hora-entrada').value;
-                const salida = fila.querySelector('.hora-salida').value;
-                const minDescanso = parseInt(fila.querySelector('.min-descanso').value) || 0;
-
-                if (entrada && salida) {//verifica si hay datos en entrada y salida
+            // verifica que el checkbox exista y este marcado (dia seleccionado)
+            if (checkbox && checkbox.checked) {
+                // usamos '?.' (optional chaining) para proteger la lectura y evitar errores.
+                // Obtiene la hora de entrada, o undefined si no existe 
+                const entrada = fila.querySelector('.hora-entrada')?.value;
+                // Obtiene la hora de salida, o undefined si no existe
+                const salida = fila.querySelector('.hora-salida')?.value;
+                // Obtiene los minutos de descanso. Si el input no existe o el valor no es valido, se usa 0.
+                const minDescanso = parseInt(fila.querySelector('.min-descanso')?.value) || 0;
+                // valida que ambos campos tengan un valor
+                if (entrada && salida) {
+                    // -- Convertir horas a minnutos --
+                    // 'entrada.split(':') convierte la hora en un array de strings (08:30 -> [Ej: ["08", "30"])
+                    // .map(Number) convierte cada string en numero (Ej: ["08", "30"] -> [8, 30])
                     const [entHora, entMin] = entrada.split(':').map(Number);
                     const [salHora, salMin] = salida.split(':').map(Number);
                     
-                    const minutosEntrada = (entHora * 60) + entMin;//calcula la hora en entrada en minutos (number)
+                    const minutosEntrada = (entHora * 60) + entMin;//calcula la hora de entrada en minutos
                     const minutosSalida = (salHora * 60) + salMin;//calcula la hora de salida en minutos
                     
-                    let minutosTrabajados = minutosSalida - minutosEntrada;
-                    minutosTrabajados -= minDescanso;//resta los minutos de descanso a los minutos trabajados
-                    
+                    let minutosTrabajados = minutosSalida - minutosEntrada; 
+                    minutosTrabajados -= minDescanso;
+                    // Solo suma si los minutosTrabajados son positivos, para evitar errores de calculo
                     if (minutosTrabajados > 0) {
                         totalMinutos += minutosTrabajados;//acumula los minutos a trabajados de toda la semana
                     }
                 }
             }
         });
-        return totalMinutos / 60;//calcula el total de horas a laborar en la semana segun la tabla de horario
+        //calcula el total de horas a laborar en la semana segun la tabla de horario
+        return totalMinutos / 60;
     }
 
     // --- Funcion para construir el objeto Map del Horario ---
@@ -213,11 +261,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const checkbox = fila.querySelector('.dia-checkbox');
             if (checkbox && checkbox.checked) {
                 const dia = checkbox.value;
-                horario[dia] = {//inicia construccion del objeto horario con sus claves y valores respectivas por dia seleccionado
-                    entrada: fila.querySelector('.hora-entrada').value,
-                    salida: fila.querySelector('.hora-salida').value,
-                    inicioDescanso: fila.querySelector('.hora-descanso').value || "",
-                    duracionDescansoMinutos: parseInt(fila.querySelector('.min-descanso').value) || 0
+                horario[dia] = {
+                    //inicia construccion del objeto horario con sus claves y valores respectivas por dia seleccionado
+                    // usamos ?. para evitar que la app se rompa si falta un input en el HTML
+                    entrada: fila.querySelector('.hora-entrada')?.value || "",
+                    salida: fila.querySelector('.hora-salida')?.value || "",
+                    omitirDescanso: fila.querySelector('.omitir-descanso-cb')?.checked || false,
+                    inicioDescanso: fila.querySelector('.hora-descanso')?.value || "",
+                    duracionDescansoMinutos: parseInt(fila.querySelector('.min-descanso')?.value) || 0
                 };
             }
         });
@@ -281,6 +332,41 @@ document.addEventListener('DOMContentLoaded', () => {
         return null; // No hay duplicados
     }
 
+    // --- FUNCIÓN AUXILIAR para validar congruencia entre Tipo de Jornada y Horario ---
+    // Verifica que los campos de descanso coincidan con el tipo de jornada elegida
+    function validarCongruenciaJornadaHorario(tipoJornada) {
+        const filas = document.querySelectorAll('#tablaHorario tr');
+        let mensajeError = null;
+
+        filas.forEach(fila => {
+            const checkbox = fila.querySelector('.dia-checkbox');
+            
+            if (checkbox && checkbox.checked) {
+                // usamos ?. para proteger la lectura
+                const entrada = fila.querySelector('.hora-entrada')?.value;
+                const salida = fila.querySelector('.hora-salida')?.value;
+                const inicioDescanso = fila.querySelector('.hora-descanso')?.value || "";
+                const minDescanso = parseInt(fila.querySelector('.min-descanso')?.value) || 0;
+                const omitirDescanso = fila.querySelector('.omitir-descanso-cb')?.checked || false; 
+
+                if (entrada && salida) {
+                    if (tipoJornada === 'continua_sin_descanso') {
+                        if (inicioDescanso !== "" || minDescanso > 0) {
+                            mensajeError = "ERROR: El tipo de jornada 'Continua sin descanso' no permite registrar horas de descanso.";
+                        }
+                    } else if (tipoJornada === 'continua_con_descanso' || tipoJornada === 'partida') {
+                        // Si NO se marcó la excepción, es obligatorio el descanso
+                        if (!omitirDescanso && (inicioDescanso === "" || minDescanso === 0)) {
+                            mensajeError = "ERROR: La jornada requiere especificar descanso. Si un día no debe tener descanso entonces marca la casilla 'Omitir Descanso' en esa fila.";
+                        }
+                    }
+                }
+            }
+        });
+
+        return mensajeError;
+    }
+
     // =============================================
     //  5.  EVENTO SUBMIT DEL FORMULARIO 
     // =============================================
@@ -297,28 +383,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; 
             }
 
-            // 2. Validacion de coincidencia entre horas definidas en jornada y las horas definidas en la tabla horario.
+            // -- 2. VALIDACION MATEMATICA --
+            // - Validacion de coincidencia entre horas definidas en jornada y las horas definidas en la tabla horario.
             // ambas deben coincidir para evitar inconsistencia en las horas que debe laborar el empleado
             const jornadaSeleccionada = parseFloat(document.getElementById('empJornada').value);
             const horasCalculadas = calcularHorasTabla();
             
             if (horasCalculadas !== jornadaSeleccionada) {
-                alert(`ERROR:\nHas seleccionado una jornada de ${jornadaSeleccionada} hrs semanales, pero el Horario Personalizado suma ${horasCalculadas} hrs. Es necesario que coincidan para poder realizar el registro.`);
+                alert(`ERROR DE HORARIO:\nHas seleccionado una jornada de ${jornadaSeleccionada} hrs semanales, pero el Horario seleccionado en la tabla suma ${horasCalculadas} hrs. Es necesario que coincidan para poder realizar el registro.`);
                 return; 
             }
 
-            // 3. VALIDACIÓN DE DUPLICADOS EN FIRESTORE
+            // -- 3. VALIDACION DE CONGRUENCIA DE TIPO DE JORNADA VS HORARIO
+            const tipoJornadaSeleccionada = document.getElementById('empTipoJornada').value;
+            const errorCongruencia = validarCongruenciaJornadaHorario(tipoJornadaSeleccionada);
+            
+            if (errorCongruencia) {
+                // Mostramos el error y usamos 'return' para detener el proceso.
+                // Al no usar formRegistroEmpleado.reset(), los datos se quedan en pantalla.
+                alert(errorCongruencia);
+                return; 
+            }
+
+            // -- 4. VALIDACIÓN DE DUPLICADOS EN FIRESTORE --
             const codigo = document.getElementById('empCodigo').value.trim();
             const rfc = document.getElementById('empRFC').value.trim().toUpperCase();
             const curp = document.getElementById('empCURP').value.trim().toUpperCase();
             
             const errorDuplicado = await verificarDuplicados(codigo, rfc, curp, empleadoEditandoID);
             if (errorDuplicado) {
-                alert(`ERROR AL GUARDAR!:\n${errorDuplicado}`);
+                alert(`ERROR DE DUPLICIDAD!:\n${errorDuplicado}`);
                 return;
             }
 
-            // 3. Bloquear boton 'Guardar'
+            // -- 5. Bloquear boton 'Guardar' --
             //Evita que el usuario haga doble click al guardar y envie dos veces el mismo registro
             btnSubmit.disabled = true;
             btnSubmit.textContent = "Guardando...";
@@ -331,14 +429,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 //fotoActualURL es la variable global que se llena al dar click en el boton Editar
                 let urlParaGuardar = fotoActualURL;
 
-                // 4. Subir foto a FIREBASE STORAGE (Solo si seleccionaron una nueva)
+                // 6. Subir foto a FIREBASE STORAGE (Solo si seleccionaron una nueva)
                 if (fotoFile) {
                     const storageRef = storage.ref(`empleados/${codigo}/${fotoFile.name}`);//crea una referencia en storage con ruta tipo "ej: empleados/EMP-001/foto.jpg"
                     const uploadTask = await storageRef.put(fotoFile);//sube el archivo a firebase storage
                     urlParaGuardar = await uploadTask.ref.getDownloadURL(); //actualiza el nuevo link (url) de la imagen nueva
                 }
 
-                // 5. Construccion del objeto "Empleado" para Firestore
+                // 7. Construccion del objeto "Empleado" para Firestore
                 const empleadoData = {
                     codigo: codigo,
                     nombre: document.getElementById('empNombre').value.trim(),
@@ -372,7 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     empleadoData.fechaRegistro = firebase.firestore.FieldValue.serverTimestamp();
                 }
 
-                // 6. Guardar o Actualizar en Firestore
+                // 8. Guardar o Actualizar en Firestore
                 // Accede a la coleccion 'empleados' en firestore, usa el codigo del empleado como ID del documento
                 // Guardar en Firestore usando "merge:true" en lugar de sobrescribir 
                 // permite que campos y valores que no se envian desde el formulario se conserven (como saldoHorasExtra,estatus,etc..)
@@ -533,8 +631,10 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('empObservaciones').value = emp.observaciones || "";
 
             // 4. Rellenado de la tabla de horarios
-            const filas = document.querySelectorAll('#tablaHorario tr');//obtiene todas las filas de la tabla horario del empleado
-            filas.forEach(fila => {//recorre cada fila de la tabla horario
+            //obtiene todas las filas de la tabla horario del empleado
+            const filas = document.querySelectorAll('#tablaHorario tr');
+
+            filas.forEach(fila => {
                 const checkbox = fila.querySelector('.dia-checkbox');//busca en la fila un elemento con la clase 'dia-checkbox y devuelve la primer coincidencia
                 const dia = checkbox.value;//obtiene el valor asignado en el atributo value y lo guarda en la variable 'dia'
                 
@@ -542,17 +642,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 // y rellena los campos de hora de la fila actual
                 if (emp.horario && emp.horario[dia]) {
                     checkbox.checked = true;
+                    // desbloqueamos la fila antes de inyectar los datos    
+                    controlInputsHorario(checkbox);
+
+                    //inyectamos los datos de firebase
                     fila.querySelector('.hora-entrada').value = emp.horario[dia].entrada;
                     fila.querySelector('.hora-salida').value = emp.horario[dia].salida;
+                    //cargar la excepcion
+                    const cbOmitir = fila.querySelector('.omitir-descanso-cb');
+                    cbOmitir.checked = emp.horario[dia].omitirDescanso || false;
+
                     fila.querySelector('.hora-descanso').value = emp.horario[dia].inicioDescanso || "";
                     fila.querySelector('.min-descanso').value = emp.horario[dia].duracionDescansoMinutos || 0;
+
+                    //Actualizar la vista de los inputs
+                    controlInputsDescanso(cbOmitir);
                 } else {
                     // Si no trabaja ese día, desmarca el checkbox y limpia los campos de la fila del dia en turno
                     checkbox.checked = false;
-                    fila.querySelector('.hora-entrada').value = "";
-                    fila.querySelector('.hora-salida').value = "";
-                    fila.querySelector('.hora-descanso').value = "";
-                    fila.querySelector('.min-descanso').value = 0;
+                    controlInputsHorario(checkbox);
+                    // fila.querySelector('.hora-entrada').value = "";
+                    // fila.querySelector('.hora-salida').value = "";
+                    // fila.querySelector('.hora-descanso').value = "";
+                    // fila.querySelector('.min-descanso').value = 0;
+                    
+                    // // Desmarcamos tambien la excepcion de descanso
+                    // const cbOmitir = fila.querySelector('.omitir-descanso-cb');
+                    // if (cbOmitir) cbOmitir.checked = false;
+                    
+                    // Ejecutamos la funcion visual para que bloquee toda la fila
                 }
             });
 
