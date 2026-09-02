@@ -20,15 +20,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ============================================
-    // 2. NAVEGACIÓN SPA (Single Page Application) Menú Lateral del panel de Administracion
+    // 2. NAVEGACION SPA (Single Page Application) Menú Lateral del panel de Administracion
     // ============================================
     // Aqui se implementa un sistema de navegacion que cambia el contenido visible sin recargar la pagina,
     // utilizando clases CSS para mostrar u ocultar secciones.
     const navItems = document.querySelectorAll('.nav-item');//Seleccion de todos los botones de menu lateral con clase indicada
     const contentSections = document.querySelectorAll('.content-section');//Seleccion de todas las secciones de contenido con la clase indicada
 
-    navItems.forEach(button => {// itera sobre cada boton del menu lateral
-        button.addEventListener('click', () => {//cada boton reacciona al detectar un click
+    // itera sobre cada boton del menu lateral
+    navItems.forEach(button => {
+        //cada boton reacciona al detectar un click
+        button.addEventListener('click', () => {
             
             // A. Quita la clase 'active' de todos los botones
             navItems.forEach(btn => btn.classList.remove('active'));
@@ -42,6 +44,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // D. Muestra la sección correspondiente
             const targetId = button.getAttribute('data-target');//obtiene el valor del atributo data-target
             document.getElementById(targetId).classList.add('active');//busca el elemento con ese ID (targetID) en el HTML y le agrega la clase active
+
+            // E. Limpiar el reporte si salimos de esa pestana. 
+            if (targetId !== 'seccion-reportes') {
+                // si existe la funcion, la ejecuta
+                if (typeof limpiarVistaReporte === 'function') {
+                    limpiarVistaReporte();
+                }
+            }
         });
     });
 
@@ -1238,12 +1248,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // 15. MÓDULO DE REPORTES Y CONSULTAS
     // ============================================
     //Objetivo: Generar un reporte de incidencias (faltas, retardos, vacaciones, permisos) de empleados activos en un rango de fechas seleccionado.
+
+    // Función auxiliar para resetear el estado del reporte
+    window.limpiarVistaReporte = function() {
+        const formFiltros = document.getElementById('formFiltrosReporte');
+        const contenedorResultados = document.getElementById('contenedorResultadosReporte');
+        const tablaBody = document.getElementById('tablaReportesBody');
+
+        if (formFiltros) formFiltros.reset();
+        if (contenedorResultados) contenedorResultados.classList.add('hidden');
+        if (tablaBody) tablaBody.innerHTML = '';
+    };
+
+    // Evento para el botón "Limpiar"
+    const btnLimpiarReporte = document.getElementById('btnLimpiarReporte');
+    if (btnLimpiarReporte) {
+        btnLimpiarReporte.addEventListener('click', limpiarVistaReporte);
+    }
+
     // --- Referencias al DOM (variables globales del modulo)---
     const formFiltrosReporte = document.getElementById('formFiltrosReporte');
     const contenedorResultadosReporte = document.getElementById('contenedorResultadosReporte');
     const tablaReportesBody = document.getElementById('tablaReportesBody');
     const tituloResultadosPeriodo = document.getElementById('tituloResultadosPeriodo');
-
+    
     // --- Escuchador del formulario ---
     if (formFiltrosReporte) {
         formFiltrosReporte.addEventListener('submit', async (e) => {

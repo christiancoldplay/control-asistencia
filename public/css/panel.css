@@ -726,6 +726,15 @@ legend {
     font-weight: bold;
 }
 
+.reporte-acciones-filtro {
+    display: flex;
+    gap: 10px;
+}
+
+.reporte-acciones-filtro button {
+    flex: 1; /* Hace que ambos botones midan exactamente lo mismo (50% y 50%) */
+}
+
 /* ============================================
    BUSCADORES Y ACCIONES DE ENCABEZADO
    ============================================ */
