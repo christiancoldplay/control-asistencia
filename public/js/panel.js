@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('userNameDisplay').textContent = user.email;
             cargarEmpleados();//carga la tabla de empleados
             cargarUsuarios();//carga la tabla de usuarios
+            cargarIncidencias();//carga la tabla de incidencias
         } else { //si no esta autenticado redirige al login (index.html)
             window.location.replace('index.html');
         }
@@ -1569,8 +1570,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         const fechaFormateada = fechaObj.toLocaleDateString('es-MX');
                         // obtenemos el motivo de la incidencia o un mensaje 
                         const motivo = inc.motivo || 'Sin motivo registrado';
-                        // mostramos las horas afectadas o 'N/A' si no hay
-                        const horas = inc.horasAfectadas ? `${inc.horasAfectadas} hrs afectadas` : 'N/A';
+                        // mostramos las horas afectadas (en minutos) o 'N/A' si no hay
+                        const horas = inc.horasAfectadas ? `${inc.horasAfectadas} min afectadas` : 'N/A';
+                        // Si la incidencia tiene estatus, la limpiamos tambien
+                        let estatusIncidencia = "";
+                        if (inc.estatus) {
+                            estatusIncidencia = ` | Estatus: ${inc.estatus.replace(/_/g, ' ').toUpperCase()} `;
+                        }   
 
                         // -- Construir la tarjeta de la incidencia --
                         // creamos una tajeta individual para cada incidencia
@@ -1626,7 +1632,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnExportarPDF = document.getElementById('btnExportarPDF');
     const btnExportarCSV = document.getElementById('btnExportarCSV');
 
-    // --- Exportar a formato CSV (compatible con Excel, Google Sheets,...) ---
+    // --- Exportar a formato CSV ---
     // ========================================================================
 
     // Funcion auxiliar para obtener la fecha actual en formato YYYY-MM-DD
@@ -1768,5 +1774,284 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ============================================
+    // 17. GESTIÓN DE INCIDENCIAS
+    // ============================================
+    // Objetivo: Permitir al administrador (director adm.) registrar, ver y gestionar las incidencias de los empleados
+
+    // Funcionalidades:
+    // - Registrar nuevas incidencias 
+    // - Visualizar lista de incidencias en tiempo real (ordenadas por fecha).
+    // - Filtro de busqueda en tiempo real sobre la tabla.
+
+    // Referencias al DOM (variables globales del modulo)
+    const vistaListaIncidencias = document.getElementById('vistaListaIncidencias');
+    const vistaFormularioIncidencia = document.getElementById('vistaFormularioIncidencia');
+    const btnMostrarFormIncidencia = document.getElementById('btnMostrarFormIncidencia');
+    const btnVolverListaIncidencias = document.getElementById('btnVolverListaIncidencias');
+    const formRegistroIncidencia = document.getElementById('formRegistroIncidencia');
+    const selectIncEmpleado = document.getElementById('incEmpleado');
+    const tablaIncidenciasBody = document.getElementById('tablaIncidenciasBody');
+
+    // Variable de estado para saber si creamos o editamos
+    let incidenciaEditandoID = null;
+
+    // --- Función Auxiliar: Limpiar Formulario de Incidencias ---
+    function limpiarFormularioIncidencia() {
+        formRegistroIncidencia.reset();
+        incidenciaEditandoID = null;
+        document.getElementById('tituloFormIncidencia').textContent = "Registrar Nueva Incidencia";
+        formRegistroIncidencia.querySelector('button[type="submit"]').textContent = "Guardar Incidencia";
+    }
+
+    // -- A. Sub-navegación: Mostrar formulario y Cargar Empleados. --
+    // Controla la visibilidad entre la lista de incidencias y el formulario de registro de incidencias.
+
+    // verificacion de que ambos elementos existen en el DOM
+    if (btnMostrarFormIncidencia && btnVolverListaIncidencias) {        
+        // al hacer click en "Nueva incidencia..."
+        btnMostrarFormIncidencia.addEventListener('click', async () => {
+            //limpiar el fomrulario de incidencias
+            limpiarFormularioIncidencia();
+            // 1. Ocultar la lista y mostrar el formulario
+            vistaListaIncidencias.classList.add('hidden');
+            vistaFormularioIncidencia.classList.remove('hidden');
+            
+            // Cargar empleados activos en el <select>
+            // esto permite asocial la incidencia a un empleado.
+            try {
+                //consultamos solo empleados con estatus 'activo', ordenados por nombre
+                const snapshot = await db.collection('empleados').where('estatus', '==', 'activo').orderBy('nombre', 'asc').get();
+                // limpiamos el <select> y agregamos la opcion por defecto
+                selectIncEmpleado.innerHTML = '<option value="">Seleccione un empleado...</option>';
+                // recorremos cada empleado y lo agregamos al select
+                snapshot.forEach(doc => {
+                    const emp = doc.data();
+                    // Guardamos el nombre en un atributo 'data-nombre' para usarlo al mostrar la incidencia en la tabla (evita hacer otra consulta a la base de datos)
+                    selectIncEmpleado.innerHTML += `<option value="${doc.id}" data-nombre="${emp.nombre}">${emp.nombre} (${emp.codigo})</option>`;
+                });
+            } catch (error) {
+                console.error("Error al cargar empleados para incidencias:", error);
+            }
+        });
+        // Al hacer click en "cancelar" o "volver"
+        btnVolverListaIncidencias.addEventListener('click', () => {
+            // ocultamos el formulario y mostramos la lista
+            vistaFormularioIncidencia.classList.add('hidden');
+            vistaListaIncidencias.classList.remove('hidden');
+            // limpiamos el formulario de incidencias
+            limpiarFormularioIncidencia();
+        });
+        
+        // Botón "Cancelar" dentro del formulario 
+        document.getElementById('btnCancelarIncidencia').addEventListener('click', () => {
+            btnVolverListaIncidencias.click();
+        });
+    }
+
+    // B. Guardar o Actualizar Incidencia en Firestore
+    // Cuando el usuario envia el formulario, se crea un nuevo documento
+    // en la coleccion 'incidencias' de Firestore.
+    if (formRegistroIncidencia) {
+        formRegistroIncidencia.addEventListener('submit', async (e) => {
+            e.preventDefault(); // evita recarga de la pagina
+            // Referencias locales al evento
+            const btnSubmit = formRegistroIncidencia.querySelector('button[type="submit"]');
+            // Deshabilitar el boton para evitar doble clic
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = "Guardando...";
+
+            try {
+                // 1. obtener la opcion seleccionada del select
+                const opcionSeleccionada = selectIncEmpleado.options[selectIncEmpleado.selectedIndex];
+                
+                // 2. Construir el objeto de la incidencia
+                const incidenciaData = {
+                    // Datos del empleado
+                    empleadoID: opcionSeleccionada.value,
+                    empleadoNombre: opcionSeleccionada.getAttribute('data-nombre'),
+
+                    // Datos de la incidencia
+                    tipoIncidencia: document.getElementById('incTipo').value,
+                    // convertimos la fecha de string a timestamp de firestore (inicio del dia)
+                    fechaInicio: firebase.firestore.Timestamp.fromDate(new Date(document.getElementById('incFechaInicio').value + "T00:00:00")),
+                    horasAfectadas: parseInt(document.getElementById('incHorasAfectadas').value) || 0,
+                    autorizantes: document.getElementById('incAutorizantes').value.trim(),
+                    motivo: document.getElementById('incMotivo').value.trim()
+                    // Campos automaticos 
+                    // estatus: 'aprobada',
+                    // fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
+                    // registradoPor: auth.currentUser.email 
+                };
+
+                // 3. Si hay fecha de fin, la agregamos al objeto.
+                const fechaFinVal = document.getElementById('incFechaFin').value;
+                if (fechaFinVal) {
+                    incidenciaData.fechaFin = firebase.firestore.Timestamp.fromDate(new Date(fechaFinVal + "T23:59:59"));
+                } else if (incidenciaEditandoID) {
+                    // Solo usamos delete si estamos editando un documento que ya existe
+                    incidenciaData.fechaFin = firebase.firestore.FieldValue.delete();
+                }
+                // Si estamos creando una incidencia nueva, y el campo fechaFin esta vacio, no se agrega al objeto.
+
+                if (incidenciaEditandoID) {
+                    // MODO EDICION: Actualizamos el documento existente.
+                    await db.collection('incidencias').doc(incidenciaEditandoID).update(incidenciaData);
+                    alert("Incidencia actualizada exitosamente.");
+                } else {
+                    // MODO CREACION: Agregamos campos automaticos y creamos documento nuevo
+                    incidenciaData.estatus = 'aprobada';
+                    incidenciaData.fechaCreacion = firebase.firestore.FieldValue.serverTimestamp();
+                    // proteccion para obtener el correo del administrador
+                    const usuarioActual = firebase.auth().currentUser;
+                    const correoAdmin = (usuarioActual && usuarioActual.email) ? usuarioActual.email : document.getElementById('userNameDisplay').textContent;
+
+                    incidenciaData.registradoPor = correoAdmin;
+
+                    // Guardar en Firestore (Colección 'incidencias')
+                    await db.collection('incidencias').add(incidenciaData);
+                    alert("Incidencia registrada exitosamente.");
+                }
+                                
+                // Regresa a la lista y limpia el formulario                
+                btnVolverListaIncidencias.click(); 
+
+            } catch (error) {
+                console.error("Error al guardar incidencia:", error);
+                alert("Ocurrió un error al guardar la incidencia.");
+            } finally {
+                // restaurar el boton
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = incidenciaEditandoID ? "Actualizar Incidencia" : "Guardar Incidencia";
+            }
+        });
+    }
+
+    // C. Cargar y Mostrar Incidencias
+    // Usa onSnapshot para escuchar cambios en Firestore y actualizar la tabla automaticamente 
+    window.cargarIncidencias = function() {
+        if (!tablaIncidenciasBody) return;
+
+        // Consultamos ordenando por fecha de creación (las más recientes primero)
+        db.collection('incidencias').orderBy('fechaCreacion', 'desc').onSnapshot((consulta) => {
+            // limpiamos la tabla antes de dibujar
+            tablaIncidenciasBody.innerHTML = ''; 
+            // si no hay incidencias, mostramos mensaje
+            if (consulta.empty) {
+                tablaIncidenciasBody.innerHTML = `<tr><td colspan="6" class="table-empty-state">No hay incidencias registradas.</td></tr>`;
+                return;
+            }
+            //recorremos cada incidencia y la agregamos a la tabla
+            consulta.forEach((doc) => {
+                const inc = doc.data();
+                const tr = document.createElement('tr');
+                
+                // Formatear la fecha de inicio
+                let fechaTexto = "Fecha pendiente";
+                if (inc.fechaInicio) {
+                    fechaTexto = inc.fechaInicio.toDate().toLocaleDateString('es-MX');
+                }
+
+                // Limpiar el texto del tipo para mejorar legibilidad
+                const tipoTexto = inc.tipoIncidencia.replace(/_/g, ' ').toUpperCase();
+                const estatusTexto = inc.estatus.replace(/_/g, ' ').toUpperCase();
+
+                // Programacion defensiva para nombre e ID
+                const nombreEmp = inc.empleadoNombre || 'Empleado desconocido';
+                const idEmp = inc.empleadoID || 'ID desconocido';
+
+                // construir la fila
+                tr.innerHTML = `
+                    <td>${fechaTexto}</td>
+                    <td><strong>${nombreEmp}</strong>
+                    <span class="texto-secundario">${idEmp}</span>
+                    </td>
+                    <td style="font-size: 14px;">${tipoTexto}</td>
+                    <td>${inc.horasAfectadas} min</td>
+                    <td><span style="font-size: 14px;">${estatusTexto}</span></td>
+                    <td>
+                        <!-- Boton de Editar -->
+                        <button class="btn-icon" onclick="editarIncidencia('${doc.id}')" title="Editar">
+                            <img src="recursos/icono-editar.svg" alt="Editar">
+                        </button>
+                        <!-- Boton de Eliminar -->
+                        <button class="btn-icon icon-danger" title="Eliminar (Próximamente)">
+                            <img src="recursos/icono-baja.svg" alt="Eliminar">
+                        </button>
+                    </td>
+                `;
+                tablaIncidenciasBody.appendChild(tr);
+            });
+        }, (error) => {
+            console.error("Error al cargar incidencias:", error);
+        });
+    };
+
+     // D. Editar Incidencia (Cargar datos al formulario)
+     // Objetivo: cargar los datos de una incidencia existente en el formulario para que el usuario pueda modificarla y actualizarla en Firestore.     
+    window.editarIncidencia = async function(id) {
+        try {
+            // consultar el documento de la incidencia en firestore usando el id recibido como parametro para obtenerlo.
+            const doc = await db.collection('incidencias').doc(id).get();
+            if (!doc.exists) return;
+            // extraemos los datos de la incidencia del documento
+            const inc = doc.data();
+            // guardamos el id en una variable global, que sera usada en el evento submit del formulario para saber si estamos creando
+            // o editando una incidencia.
+            incidenciaEditandoID = id;
+
+            // -- 1. Cargar empleados activos en el <select>. -- 
+            // Esto permite que el usuario pueda cambiar el empleado asociado a la incidencia si es necesario. 
+            const snapshot = await db.collection('empleados').where('estatus', '==', 'activo').orderBy('nombre', 'asc').get();
+            // limpiamos el <select> y agregamos la opcion por defecto.
+            selectIncEmpleado.innerHTML = '<option value="">Seleccione un empleado...</option>';
+            // recorremos cada empleado y lo agregamos como opcion
+            snapshot.forEach(empDoc => {
+                const emp = empDoc.data();
+                // guardamos el nombre en el atributo 'data-nombre' para usarlo en la tabla
+                selectIncEmpleado.innerHTML += `<option value="${empDoc.id}" data-nombre="${emp.nombre}">${emp.nombre} (${emp.codigo})</option>`;
+            });
+
+            // -- 2. Rellenar los datos del formulario con los datos de la incidencia --
+            document.getElementById('incEmpleado').value = inc.empleadoID;
+            document.getElementById('incTipo').value = inc.tipoIncidencia;
+            document.getElementById('incHorasAfectadas').value = inc.horasAfectadas;
+            document.getElementById('incAutorizantes').value = inc.autorizantes || "";
+            document.getElementById('incMotivo').value = inc.motivo || "";
+
+            // Formatear fechas de Firestore (Timestamp) a formato (YYYY-MM-DD). Formato requerido por los datos tipo 'date'
+            if (inc.fechaInicio) {
+                // convertimos el Timestamp a objeto Date
+                const f = inc.fechaInicio.toDate();
+                // construimos el string en formato YYYY-MM-DD
+                document.getElementById('incFechaInicio').value = `${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,'0')}-${String(f.getDate()).padStart(2,'0')}`;
+            }
+            // si tiene fecha de fin, la formateamos igual (YYYY-MM-DD)
+            if (inc.fechaFin) {
+                const f = inc.fechaFin.toDate();
+                document.getElementById('incFechaFin').value = `${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,'0')}-${String(f.getDate()).padStart(2,'0')}`;
+            } else {
+                // si no tiene fecha de fin (incidencia de un dia), limpiamos el campo
+                document.getElementById('incFechaFin').value = "";
+            }
+
+            // -- 3. Cambiar la interfaz a "modo edición" --
+            // cambiamos el titulo del formulario y el texto del boton de envio
+            document.getElementById('tituloFormIncidencia').textContent = "Editar Incidencia";
+            formRegistroIncidencia.querySelector('button[type="submit"]').textContent = "Actualizar Incidencia";
+            
+            // mostrar el formulario y ocultar la lista de incidencias, para que el usuario pueda ver los datos cargados
+            vistaListaIncidencias.classList.add('hidden');
+            vistaFormularioIncidencia.classList.remove('hidden');
+
+        } catch (error) {
+            console.error("Error al cargar incidencia para editar:", error);
+            alert("Ocurrió un error al cargar los datos de la incidencia.");
+        }
+    };
+
+    // Buscador en tiempo real para incidencias
+    // reutiliza la funcion global 'configurarBuscador' para filtrar la tabla de incidencias mientra el usuario escribe
+    configurarBuscador('buscadorIncidencias', 'tablaIncidenciasBody');
 
 });

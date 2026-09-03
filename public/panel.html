@@ -19,6 +19,7 @@
             
             <nav class="sidebar-nav">
                 <button class="nav-item active" data-target="seccion-empleados">Gestión de Empleados</button>
+                <button class="nav-item" data-target="seccion-incidencias">Gestión de Incidencias</button>
                 <button class="nav-item" data-target="seccion-reportes">Reportes y Consultas</button>
                 <button class="nav-item" data-target="seccion-usuarios">Gestión de Usuarios</button>
             </nav>
@@ -292,7 +293,109 @@
                 </div>
             </section>
 
-            <!-- SECCIÓN 2: REPORTES Y CONSULTAS -->
+            <!-- SECCIÓN 2: GESTIÓN DE INCIDENCIAS -->
+            <section id="seccion-incidencias" class="content-section">
+                <header class="section-header">
+                    <h2>Gestión de Incidencias</h2>
+                </header>
+                
+                <!-- SUB-VISTA A: LISTADO DE INCIDENCIAS -->
+                <div id="vistaListaIncidencias" class="card-container">
+                    <div class="card-header-flex">
+                        <h3>Registro Histórico</h3>
+                        <div class="header-acciones">
+                            <input type="text" id="buscadorIncidencias" class="buscador-input" placeholder="Buscar incidencia...">
+                            <button id="btnMostrarFormIncidencia" class="btn-primary btn-auto">Registrar Incidencia</button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Empleado</th>
+                                    <th>Tipo</th>
+                                    <th>Horas Afectadas</th>
+                                    <th>Estatus</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaIncidenciasBody">
+                                <tr>
+                                    <td colspan="6" class="table-empty-state">Cargando incidencias...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- SUB-VISTA B: FORMULARIO DE INCIDENCIA -->
+                <div id="vistaFormularioIncidencia" class="card-container hidden">
+                    <div class="card-header-flex">
+                        <h3 id="tituloFormIncidencia">Registrar Nueva Incidencia</h3>
+                        <button id="btnVolverListaIncidencias" class="btn-logout btn-auto m-0">Volver a la lista de incidencias</button>
+                    </div>
+                    
+                    <form id="formRegistroIncidencia" class="admin-form">
+                        <fieldset>
+                            <legend>Datos de la Incidencia</legend>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="incEmpleado">Seleccionar Empleado *</label>
+                                    <select id="incEmpleado" required>
+                                        <option value="">Cargando empleados...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="incTipo">Tipo de Incidencia *</label>
+                                    <select id="incTipo" required>
+                                        <option value="">Seleccione...</option>
+                                        <option value="falta_injustificada">Falta Injustificada</option>
+                                        <option value="falta_justificada">Falta Justificada</option>
+                                        <option value="retardo_injustificado">Retardo Injustificado</option>
+                                        <option value="retardo_justificado">Retardo Justificado</option>
+                                        <option value="permiso_con_goce">Permiso con Goce de Sueldo</option>
+                                        <option value="permiso_sin_goce">Permiso sin Goce de Sueldo</option>
+                                        <option value="vacaciones">Vacaciones</option>
+                                        <option value="incapacidad">Incapacidad</option>
+                                        <option value="hora_extra">Hora Extra</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="incFechaInicio">Fecha de Inicio *</label>
+                                    <input type="date" id="incFechaInicio" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="incFechaFin">Fecha de Fin (Opcional)</label>
+                                    <input type="date" id="incFechaFin">
+                                </div>
+                                <div class="form-group">
+                                    <label for="incHorasAfectadas">Horas Afectadas (En minutos) *</label>
+                                    <input type="number" id="incHorasAfectadas" min="0" required>
+                                    <small class="form-instructions">Ej. 60 = 1 hora, 120 = 2 horas</small>
+                                </div>
+                                <div class="form-group">
+                                    <label for="incAutorizantes">Autorizado por (Nombre y Cargo)</label>
+                                    <input type="text" id="incAutorizantes" placeholder="Ej. Ana López - Dir. Tutoría">
+                                </div>
+                            </div>
+                            
+                            <div class="form-group observaciones-group">
+                                <label for="incMotivo">Motivo / Descripción *</label>
+                                <textarea id="incMotivo" rows="3" required></textarea>
+                            </div>
+                        </fieldset>
+
+                        <div class="form-actions">
+                            <button type="button" id="btnCancelarIncidencia" class="btn-logout btn-auto">Cancelar</button>
+                            <button type="submit" class="btn-primary btn-auto">Guardar Incidencia</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- SECCIÓN 3: REPORTES Y CONSULTAS -->
             <section id="seccion-reportes" class="content-section">
                 <header class="section-header">
                     <h2>Reportes y Consultas de Incidencias</h2>
@@ -369,7 +472,7 @@
                 </div>
             </section>
 
-            <!-- SECCIÓN 3: GESTION DE USUARIOS -->
+            <!-- SECCIÓN 4: GESTION DE USUARIOS -->
             <section id="seccion-usuarios" class="content-section">
                 <header>
                     <h2>Gestión de Usuarios (Accesos)</h2>    
