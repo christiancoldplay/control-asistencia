@@ -1778,7 +1778,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // 17. GESTIÓN DE INCIDENCIAS
     // ============================================
     // Objetivo: Permitir al administrador (director adm.) registrar, ver y gestionar las incidencias de los empleados
-
     // Funcionalidades:
     // - Registrar nuevas incidencias 
     // - Visualizar lista de incidencias en tiempo real (ordenadas por fecha).
@@ -1974,8 +1973,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="btn-icon" onclick="editarIncidencia('${doc.id}')" title="Editar">
                             <img src="recursos/icono-editar.svg" alt="Editar">
                         </button>
+                        <!-- Boton de Ver Detalles -->
+                        <button class="btn-icon" onclick="verDetallesIncidencia('${doc.id}')" title="Ver Detalles">
+                            <img src="recursos/icono-ver.svg" alt="Ver">
+                        </button>
                         <!-- Boton de Eliminar -->
-                        <button class="btn-icon icon-danger" title="Eliminar (Próximamente)">
+                        <button class="btn-icon icon-danger" title="Eliminar (Pendiente)">
                             <img src="recursos/icono-baja.svg" alt="Eliminar">
                         </button>
                     </td>
@@ -2053,5 +2056,98 @@ document.addEventListener('DOMContentLoaded', () => {
     // Buscador en tiempo real para incidencias
     // reutiliza la funcion global 'configurarBuscador' para filtrar la tabla de incidencias mientra el usuario escribe
     configurarBuscador('buscadorIncidencias', 'tablaIncidenciasBody');
+
+    // ============================================
+    // 18. VER DETALLES DE INCIDENCIA (Modal)
+    // ============================================
+    window.verDetallesIncidencia = async function(id) {
+        try {
+            // 1. Consultar la incidencia en Firestore
+            const doc = await db.collection('incidencias').doc(id).get();
+            if (!doc.exists) return;
+            const inc = doc.data();
+
+            const modalBody = document.getElementById('modalBodyIncidencia');
+
+            // 2. Formatear fechas y textos
+            const fechaInicioFormateada = inc.fechaInicio ? inc.fechaInicio.toDate().toLocaleDateString('es-MX') : 'No registrada';
+            const fechaFinFormateada = inc.fechaFin ? inc.fechaFin.toDate().toLocaleDateString('es-MX') : 'No aplica';
+            
+            const tipoTexto = inc.tipoIncidencia.replace(/_/g, ' ').toUpperCase();
+            const estatusTexto = inc.estatus.replace(/_/g, ' ').toUpperCase();
+            const nombreEmp = inc.empleadoNombre || 'Empleado Desconocido';
+
+            // 3. Inyectar HTML limpio usando las clases CSS
+            modalBody.innerHTML = `
+                <div class="incidencia-detalle-grupo" style="margin-bottom: 20px;">                    
+                    <div class="incidencia-detalle-valor" style="border-bottom: 2px solid var(--color-primary); padding-bottom: 10px;">
+                        <strong style="font-size: 18px; color: var(--color-primary);">${nombreEmp}</strong> 
+                        <span class="texto-secundario">${inc.empleadoID}</span>
+                    </div>
+                </div>
+                
+                <div class="grid-detalles-2">
+                    <div class="incidencia-detalle-grupo">
+                        <span class="incidencia-detalle-etiqueta">Tipo de Incidencia</span>
+                        <div class="incidencia-detalle-valor">${tipoTexto}</div>
+                    </div>
+                    <div class="incidencia-detalle-grupo">
+                        <span class="incidencia-detalle-etiqueta">Estatus</span>
+                        <div class="incidencia-detalle-valor">
+                            <span class="estatus-${inc.estatus}">${estatusTexto}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid-detalles-2">
+                    <div class="incidencia-detalle-grupo">
+                        <span class="incidencia-detalle-etiqueta">Fecha de Inicio</span>
+                        <div class="incidencia-detalle-valor">${fechaInicioFormateada}</div>
+                    </div>
+                    <div class="incidencia-detalle-grupo">
+                        <span class="incidencia-detalle-etiqueta">Fecha de Fin</span>
+                        <div class="incidencia-detalle-valor">${fechaFinFormateada}</div>
+                    </div>
+                </div>
+
+                <div class="grid-detalles-2">
+                    <div class="incidencia-detalle-grupo">
+                        <span class="incidencia-detalle-etiqueta">Tiempo Afectado</span>
+                        <div class="incidencia-detalle-valor">${inc.horasAfectadas} minutos</div>
+                    </div>
+                    <div class="incidencia-detalle-grupo">
+                        <span class="incidencia-detalle-etiqueta">Registrado por</span>
+                        <div class="incidencia-detalle-valor">${inc.registradoPor || 'Sistema'}</div>
+                    </div>
+                </div>
+
+                <div class="incidencia-detalle-grupo" style="margin-top: 10px;">
+                    <span class="incidencia-detalle-etiqueta">Autorizado por</span>
+                    <div class="incidencia-detalle-valor">${inc.autorizantes || 'No requiere / No registrado'}</div>
+                </div>
+
+                <div class="incidencia-detalle-grupo" style="margin-top: 10px;">
+                    <span class="incidencia-detalle-etiqueta">Motivo / Descripción</span>
+                    <div class="incidencia-detalle-valor">${inc.motivo || 'Sin descripción'}</div>
+                </div>
+            `;
+
+            // 4. Mostrar el modal
+            document.getElementById('modalDetallesIncidencia').classList.remove('hidden');
+
+        } catch (error) {
+            console.error("Error al ver detalles de incidencia:", error);
+            alert("Ocurrió un error al cargar los detalles.");
+        }
+    };
+
+    // Evento para cerrar el modal
+    const btnCerrarModalIncidencia = document.getElementById('btnCerrarModalIncidencia');
+    if (btnCerrarModalIncidencia) {
+        btnCerrarModalIncidencia.addEventListener('click', () => {
+            document.getElementById('modalDetallesIncidencia').classList.add('hidden');
+        });
+    }
+
 
 });
