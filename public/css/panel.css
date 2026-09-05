@@ -830,7 +830,7 @@ legend {
 }
 
 /* Etiqueta para las horas afectadas */
-.badge-horas {
+.etq-horas {
     background-color: var(--color-primary);
     color: var(--color-white);
     padding: 2px 8px;
@@ -855,7 +855,7 @@ legend {
 
 /* Texto secundario para subtítulos o IDs en tablas */
 .texto-secundario {
-    font-size: 12px;
+    font-size: 14px;
     color: var(--color-text-light);
     display: block; 
     margin-top: 2px;
@@ -900,4 +900,35 @@ legend {
     padding-bottom: 8px;
     border-bottom: 1px solid var(--color-bg);
     word-wrap: break-word; 
+}
+
+/* ============================================
+   MONITOR DIARIO (ESTATUS EN TIEMPO REAL)
+   ============================================ */
+.etq-estatus {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 14px;
+    /* font-weight: bold; */
+    display: inline-block;
+}
+
+/* Colores semánticos para el monitor */
+.etq-gris { background-color: #e2e8f0; color: #4a5568; } /* No ha llegado */
+.etq-verde { background-color: #c6f6d5; color: #22543d; } /* En turno */
+.etq-azul { background-color: #bee3f8; color: #2a4365; } /* Turno completado */
+.etq-naranja { background-color: #feebc8; color: #975a16; } /* En descanso */
+.etq-rojo { background-color: #fed7d7; color: #9b2c2c; } /* Alerta / Falta salida */
+
+/* Lista de horas escaneadas */
+.lista-escaneos {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-size: 14px;
+    color: var(--color-text-light);
+}
+
+.lista-escaneos li {
+    margin-bottom: 2px;
 }

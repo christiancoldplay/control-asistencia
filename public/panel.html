@@ -18,6 +18,7 @@
             </div>
             
             <nav class="sidebar-nav">
+                <button class="nav-item " data-target="seccion-monitor">Registro de Asistencia</button>
                 <button class="nav-item active" data-target="seccion-empleados">Gestión de Empleados</button>
                 <button class="nav-item" data-target="seccion-incidencias">Gestión de Incidencias</button>
                 <button class="nav-item" data-target="seccion-reportes">Reportes y Consultas</button>
@@ -35,8 +36,44 @@
 
         <!-- ÁREA DE CONTENIDO PRINCIPAL -->
         <main class="main-content">
+
+            <!-- SECCION 1: MONITOR DE ASISTENCIA (Registro de Asistencia) -->
+            <section id="seccion-monitor" class="content-section">
+                <header class="section-header">
+                    <h2>Registro de Asistencia</h2>
+                </header>
+                
+                <div class="card-container">
+                    <div class="card-header-flex">
+                        <h3 id="fechaMonitorHoy">Asistencia de Hoy</h3>
+                        <div class="header-acciones">                            
+                            <input type="date" id="inputFechaMonitor" class="buscador-input" title="Cambiar fecha del registro.">
+                            <input type="text" id="buscadorMonitor" class="buscador-input" placeholder="Buscar empleado...">
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Empleado</th>
+                                    <th>Horario Esperado</th>
+                                    <th>Escaneos Registrados</th>
+                                    <th>Estatus Actual</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaMonitorBody">
+                                <tr>
+                                    <td colspan="5" class="table-empty-state">Cargando monitor...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
             
-            <!-- SECCIÓN 1: GESTIÓN DE EMPLEADOS -->
+            <!-- SECCION 2: GESTION DE EMPLEADOS -->
             <section id="seccion-empleados" class="content-section active">
                 <header class="section-header">
                     <h2>Gestión de Empleados</h2>
@@ -293,7 +330,7 @@
                 </div>
             </section>
 
-            <!-- SECCIÓN 2: GESTIÓN DE INCIDENCIAS -->
+            <!-- SECCIÓN 3: GESTIÓN DE INCIDENCIAS -->
             <section id="seccion-incidencias" class="content-section">
                 <header class="section-header">
                     <h2>Gestión de Incidencias</h2>
@@ -302,7 +339,7 @@
                 <!-- SUB-VISTA A: LISTADO DE INCIDENCIAS -->
                 <div id="vistaListaIncidencias" class="card-container">
                     <div class="card-header-flex">
-                        <h3>Registro Histórico</h3>
+                        <h3>Historial de Incidencias</h3>
                         <div class="header-acciones">
                             <input type="text" id="buscadorIncidencias" class="buscador-input" placeholder="Buscar incidencia...">
                             <button id="btnMostrarFormIncidencia" class="btn-primary btn-auto">Registrar Incidencia</button>
@@ -395,7 +432,7 @@
                 </div>
             </section>
 
-            <!-- SECCIÓN 3: REPORTES Y CONSULTAS -->
+            <!-- SECCIÓN 4: REPORTES Y CONSULTAS -->
             <section id="seccion-reportes" class="content-section">
                 <header class="section-header">
                     <h2>Reportes y Consultas de Incidencias</h2>
@@ -472,7 +509,7 @@
                 </div>
             </section>
 
-            <!-- SECCIÓN 4: GESTION DE USUARIOS -->
+            <!-- SECCIÓN 5: GESTION DE USUARIOS -->
             <section id="seccion-usuarios" class="content-section">
                 <header>
                     <h2>Gestión de Usuarios (Accesos)</h2>    

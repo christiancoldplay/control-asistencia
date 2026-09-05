@@ -76,58 +76,114 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ============================================
-    // 4. PROCESAR EL CÓDIGO LEÍDO
+    // 4. PROCESAR EL CÓDIGO LEÍDO (Con Retardos Automáticos)
     // ============================================
-    // html5qrcode envia automaticamente el parametro textoDecodificado a esta funcion
     async function onEscaneoExitoso(textoDecodificado) {
-        // 1. Apagamos la cámara inmediatamente para evitar dobles lecturas
         if (escannerActivo) {
             await escannerActivo.stop();
         }
 
-        // 2. Feedback táctil (Hace vibrar el celular por 200 milisegundos)
         if (navigator.vibrate) {
             navigator.vibrate(200);
         }
 
-        const beepSonido = document.getElementById('beep-sonido');
-        if(beepSonido) {
-            beepSonido.play().catch(error => {
-                console.warn("No se pudo reproducir el sonido automaticamente.", error)
-            });
-        }
-
         try {
-            // 3. Buscamos al empleado en Firestore usando el código leído
             const docEmpleado = await db.collection('empleados').doc(textoDecodificado).get();
             
             if (!docEmpleado.exists) {
                 alert("Código QR no válido o empleado no encontrado.");
-                iniciarCamara(); // Reiniciamos la cámara
+                iniciarCamara(); 
                 return;
             }
 
             const emp = docEmpleado.data();
 
-            // Validamos que el empleado esté activo
             if (emp.estatus !== 'activo') {
                 alert(`El empleado ${emp.nombre} está dado de baja o inactivo.`);
                 iniciarCamara();
                 return;
             }
 
-            // 4. Guardamos el registro de asistencia en Firestore
+            const ahora = new Date();
+            
+            // 1. LÓGICA DE RETARDOS AUTOMÁTICOS
+            // Averiguamos qué día es hoy para buscar su horario
+            const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+            const diaHoyStr = diasSemana[ahora.getDay()];
+            const horarioHoy = (emp.horario && emp.horario[diaHoyStr]) ? emp.horario[diaHoyStr] : null;
+
+            // Consultamos cuántos escaneos lleva hoy para saber si es su entrada
+            const inicioDia = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), 0, 0, 0);
+            const finDia = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), 23, 59, 59);
+            
+            const escaneosHoy = await db.collection('registrosAsistencia')
+                .where('empleadoID', '==', textoDecodificado)
+                .where('fechaHora', '>=', firebase.firestore.Timestamp.fromDate(inicioDia))
+                .where('fechaHora', '<=', firebase.firestore.Timestamp.fromDate(finDia))
+                .get();
+
+            const numEscaneos = escaneosHoy.size;
+
+            // Si es su PRIMER escaneo del día (Entrada) y tiene horario configurado
+            if (numEscaneos === 0 && horarioHoy && horarioHoy.entrada) {
+                const [entHora, entMin] = horarioHoy.entrada.split(':').map(Number);
+                const horaEntradaExacta = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), entHora, entMin, 0);
+                
+                // Si la hora actual (al checar QR) es mayor a su hora de entrada (cero tolerancia).
+                if (ahora > horaEntradaExacta) {
+                    
+                    // 1. Calculamos los minutos brutos de retardo
+                    const diffMilisegundos = ahora - horaEntradaExacta;
+                    let minutosRetardo = Math.floor(diffMilisegundos / (1000 * 60));
+
+                    // 2. Descontar el tiempo de descanso (Valor Neutro)
+                    if (horarioHoy.inicioDescanso && !horarioHoy.omitirDescanso) {
+                        const [descHora, descMin] = horarioHoy.inicioDescanso.split(':').map(Number);
+                        const horaInicioDescanso = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), descHora, descMin, 0);
+                        const duracionDescanso = horarioHoy.duracionDescansoMinutos || 0;
+                        const horaFinDescanso = new Date(horaInicioDescanso.getTime() + (duracionDescanso * 60000));
+
+                        if (ahora > horaInicioDescanso) {
+                            if (ahora < horaFinDescanso) {
+                                // Llegó DURANTE el descanso: Restamos solo los minutos que lleva el descanso
+                                const minutosTraslapados = Math.floor((ahora - horaInicioDescanso) / (1000 * 60));
+                                minutosRetardo -= minutosTraslapados;
+                            } else {
+                                // Llegó DESPUÉS del descanso: Restamos el descanso completo
+                                minutosRetardo -= duracionDescanso;
+                            }
+                        }
+                    }
+
+                    // Creamos la incidencia de retardo automáticamente
+                    await db.collection('incidencias').add({
+                        empleadoID: textoDecodificado,
+                        empleadoNombre: emp.nombre,
+                        tipoIncidencia: 'retardo_injustificado',
+                        fechaInicio: firebase.firestore.Timestamp.fromDate(ahora),
+                        horasAfectadas: minutosRetardo,
+                        autorizantes: 'Sistema Automático',
+                        motivo: `El empleado registró su entrada tarde. Tuvo un retardo de: ${minutosRetardo} mins. Su hora de entrada debe ser a las: ${horarioHoy.entrada}.`,
+                        estatus: 'aprobada',
+                        fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
+                        registradoPor: 'sistema@linguatec.com'
+                    });
+                    console.log(`Retardo automático registrado: ${minutosRetardo} min.`);
+                }
+            }
+
+            // 2. Guardamos el registro de asistencia normal
             const registroData = {
                 empleadoID: textoDecodificado,
                 fechaHora: firebase.firestore.FieldValue.serverTimestamp(),
-                tipoEvento: 'registro', // Más adelante se puede calcular si es entrada o salida
+                tipoEvento: 'registro', 
                 fuente: 'escaneo_qr',
                 registradoPor: auth.currentUser.email
             };
 
             await db.collection('registrosAsistencia').add(registroData);
 
-            // 5. Mostramos el éxito en la pantalla
+            // 3. Mostramos el éxito en la pantalla
             mostrarResultado(emp.nombre);
 
         } catch (error) {

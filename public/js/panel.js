@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     auth.onAuthStateChanged((user) => {
         if (user) {
             document.getElementById('userNameDisplay').textContent = user.email;
+            cargarMonitorDiario();//carga el monitor
             cargarEmpleados();//carga la tabla de empleados
             cargarUsuarios();//carga la tabla de usuarios
             cargarIncidencias();//carga la tabla de incidencias
@@ -1388,6 +1389,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         // tipos de incidencias (suma o restan minutos laborados)
                         const tiposResta = ['falta_injustificada', 'retardo_injustificado', 'permiso_sin_goce', 'salida_anticipada'];
                         const tiposSuma = ['hora_extra', 'recuperacion_horas', 'compensacion_hora_extra'];
+                        // Nota: Las incidencias tipos: falta_justificada, 'vacaciones' y 'permiso_con_goce' fueron omitidas intencionalmente
+                        // ya que son incidencias neutras que no deben sumar o restar, solo justifican las horas base del empleado.
 
                         if (tiposResta.includes(tipo)) {
                             reporteData[empID].minutosLaborados -= minsAfectados;
@@ -1571,7 +1574,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         // obtenemos el motivo de la incidencia o un mensaje 
                         const motivo = inc.motivo || 'Sin motivo registrado';
                         // mostramos las horas afectadas (en minutos) o 'N/A' si no hay
-                        const horas = inc.horasAfectadas ? `${inc.horasAfectadas} min afectadas` : 'N/A';
+                        const horas = inc.horasAfectadas ? `${formatearMinutos(inc.horasAfectadas)} min afectadas` : 'N/A';
                         // Si la incidencia tiene estatus, la limpiamos tambien
                         let estatusIncidencia = "";
                         if (inc.estatus) {
@@ -1584,7 +1587,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <li class="reporte-item">
                                 <div class="reporte-item-header">
                                     <span>Fecha: ${fechaFormateada}</span>
-                                    <span class="badge-horas">${horas}</span>
+                                    <span class="etq-horas">${horas}</span>
                                 </div>
                                 <div class="reporte-item-motivo">Motivo: ${motivo}</div>
                             </li>
@@ -1783,6 +1786,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // - Visualizar lista de incidencias en tiempo real (ordenadas por fecha).
     // - Filtro de busqueda en tiempo real sobre la tabla.
 
+    // --- FUNCIÓN AUXILIAR: Formatear minutos a Horas y Minutos ---
+    function formatearMinutos(totalMinutos) {
+        if (!totalMinutos || totalMinutos === 0) return '0 min';
+        if (totalMinutos < 60) return `${totalMinutos} min`;
+        
+        const horas = Math.floor(totalMinutos / 60);
+        const minutos = totalMinutos % 60;
+        
+        let texto = `${horas} hora${horas > 1 ? 's' : ''}`;
+        if (minutos > 0) {
+            texto += ` ${minutos} min`;
+        }
+        return texto;
+    }
+
     // Referencias al DOM (variables globales del modulo)
     const vistaListaIncidencias = document.getElementById('vistaListaIncidencias');
     const vistaFormularioIncidencia = document.getElementById('vistaFormularioIncidencia');
@@ -1966,7 +1984,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="texto-secundario">${idEmp}</span>
                     </td>
                     <td style="font-size: 14px;">${tipoTexto}</td>
-                    <td>${inc.horasAfectadas} min</td>
+                    <td>${formatearMinutos(inc.horasAfectadas)}</td>
                     <td><span style="font-size: 14px;">${estatusTexto}</span></td>
                     <td>
                         <!-- Boton de Editar -->
@@ -2113,7 +2131,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="grid-detalles-2">
                     <div class="incidencia-detalle-grupo">
                         <span class="incidencia-detalle-etiqueta">Tiempo Afectado</span>
-                        <div class="incidencia-detalle-valor">${inc.horasAfectadas} minutos</div>
+                        <div class="incidencia-detalle-valor">${formatearMinutos(inc.horasAfectadas)}</div>
                     </div>
                     <div class="incidencia-detalle-grupo">
                         <span class="incidencia-detalle-etiqueta">Registrado por</span>
@@ -2148,6 +2166,223 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('modalDetallesIncidencia').classList.add('hidden');
         });
     }
+
+    // ===========================================================
+    // 19. MONITOR DE ASISTENCIA DIARIO (Tiempo Real e Histórico)
+    // ===========================================================
+    const tablaMonitorBody = document.getElementById('tablaMonitorBody');
+    const fechaMonitorHoy = document.getElementById('fechaMonitorHoy');
+    const inputFechaMonitor = document.getElementById('inputFechaMonitor');
+    
+    let monitorSnapshotUnsubscribe = null; // Variable para apagar el escuchador de Firebase
+
+    // --- FUNCIÓN AUXILIAR: Generar Falta Automática ---
+    async function registrarFaltaAutomatica(emp, horarioHoy, fecha) {
+        // 1. Crear un ID único y determinista: "falta_EA001_2026-09-03"
+        const year = fecha.getFullYear();
+        const month = String(fecha.getMonth() + 1).padStart(2, '0');
+        const day = String(fecha.getDate()).padStart(2, '0');
+        const fechaStr = `${year}-${month}-${day}`;
+        
+        const idIncidencia = `falta_${emp.id}_${fechaStr}`;
+
+        try {
+            // 2. Verificar si ya existe (Para no duplicar ni sobreescribir)
+            const doc = await db.collection('incidencias').doc(idIncidencia).get();
+            if (doc.exists) return; 
+
+            // 3. Calcular las horas afectadas (en minutos) según su horario base
+            const [entHora, entMin] = horarioHoy.entrada.split(':').map(Number);
+            const [salHora, salMin] = horarioHoy.salida.split(':').map(Number);
+            let minutosAfectados = ((salHora * 60) + salMin) - ((entHora * 60) + entMin);
+            
+            if (!horarioHoy.omitirDescanso) {
+                minutosAfectados -= (horarioHoy.duracionDescansoMinutos || 0);
+            }
+
+            // 4. Guardar en Firestore
+            await db.collection('incidencias').doc(idIncidencia).set({
+                empleadoID: emp.id,
+                empleadoNombre: emp.nombre,
+                tipoIncidencia: 'falta_injustificada',
+                fechaInicio: firebase.firestore.Timestamp.fromDate(new Date(`${fechaStr}T00:00:00`)),
+                horasAfectadas: minutosAfectados,
+                autorizantes: 'Sistema Automático',
+                motivo: 'El empleado no registró asistencia durante su jornada.',
+                estatus: 'aprobada',
+                fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
+                registradoPor: 'sistema@linguatec.com'
+            });
+            
+            console.log(`Falta automática registrada para ${emp.nombre}`);
+        } catch (error) {
+            console.error("Error al registrar falta automática:", error);
+        }
+    }
+
+    // --- FUNCIÓN PRINCIPAL: Cargar el Monitor ---
+    window.cargarMonitorDiario = async function(fechaSeleccionadaStr = null) {
+        if (!tablaMonitorBody) return;
+
+        const ahora = new Date(); // La hora REAL en este momento
+        let fechaMonitor;
+        
+        // 1. Determinar qué fecha vamos a consultar
+        if (fechaSeleccionadaStr) {
+            fechaMonitor = new Date(fechaSeleccionadaStr + "T00:00:00");
+        } else {
+            fechaMonitor = new Date();
+            const year = fechaMonitor.getFullYear();
+            const month = String(fechaMonitor.getMonth() + 1).padStart(2, '0');
+            const day = String(fechaMonitor.getDate()).padStart(2, '0');
+            fechaSeleccionadaStr = `${year}-${month}-${day}`;
+        }
+
+        if (inputFechaMonitor && inputFechaMonitor.value !== fechaSeleccionadaStr) {
+            inputFechaMonitor.value = fechaSeleccionadaStr;
+        }
+
+        const inicioDia = new Date(fechaMonitor.getFullYear(), fechaMonitor.getMonth(), fechaMonitor.getDate(), 0, 0, 0);
+        const finDia = new Date(fechaMonitor.getFullYear(), fechaMonitor.getMonth(), fechaMonitor.getDate(), 23, 59, 59);
+
+        const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        fechaMonitorHoy.textContent = `Asistencia: ${fechaMonitor.toLocaleDateString('es-MX', opcionesFecha)}`;
+
+        // 2. Obtener empleados activos
+        const empleadosData = {};
+        try {
+            const snapshotEmpleados = await db.collection('empleados').where('estatus', '==', 'activo').get();
+            snapshotEmpleados.forEach(doc => {
+                empleadosData[doc.id] = { ...doc.data(), escaneos: [] };
+            });
+        } catch (error) {
+            console.error("Error al cargar empleados para el monitor:", error);
+            return;
+        }
+
+        // 3. APAGAR EL ESCUCHADOR ANTERIOR (Si existe)
+        if (monitorSnapshotUnsubscribe) {
+            monitorSnapshotUnsubscribe();
+        }
+
+        // 4. Encender el nuevo escuchador para la fecha seleccionada
+        monitorSnapshotUnsubscribe = db.collection('registrosAsistencia')
+            .where('fechaHora', '>=', firebase.firestore.Timestamp.fromDate(inicioDia))
+            .where('fechaHora', '<=', firebase.firestore.Timestamp.fromDate(finDia))
+            .orderBy('fechaHora', 'asc')
+            .onSnapshot((snapshot) => {
+                
+                Object.keys(empleadosData).forEach(id => empleadosData[id].escaneos = []);
+
+                snapshot.forEach(doc => {
+                    const registro = doc.data();
+                    if (empleadosData[registro.empleadoID]) {
+                        empleadosData[registro.empleadoID].escaneos.push(registro.fechaHora.toDate());
+                    }
+                });
+
+                tablaMonitorBody.innerHTML = '';
+                const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+                const diaActualStr = diasSemana[fechaMonitor.getDay()];
+
+                const empleadosArray = Object.entries(empleadosData).map(([id, datos]) => ({ id, ...datos }));
+                empleadosArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+                empleadosArray.forEach(emp => {
+                    const horarioHoy = (emp.horario && emp.horario[diaActualStr]) ? emp.horario[diaActualStr] : null;
+                    
+                    if (!horarioHoy && emp.escaneos.length === 0) return;
+
+                    const tr = document.createElement('tr');
+                    
+                    let textoHorario = "No labora";
+                    if (horarioHoy && horarioHoy.entrada) {
+                        textoHorario = `${horarioHoy.entrada} a ${horarioHoy.salida}`;
+                    }
+
+                    let htmlEscaneos = '<ul class="lista-escaneos">';
+                    if (emp.escaneos.length === 0) {
+                        htmlEscaneos += '<li>Sin registros</li>';
+                    } else {
+                        emp.escaneos.forEach((fecha, index) => {
+                            const horaStr = fecha.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                            htmlEscaneos += `<li>Escaneo ${index + 1}: <strong>${horaStr}</strong></li>`;
+                        });
+                    }
+                    htmlEscaneos += '</ul>';
+
+                    let claseEstatus = 'etq-gris';
+                    let textoEstatus = 'NO HAY REGISTRO DE ASISTENCIA';
+                    const numEscaneos = emp.escaneos.length;
+                    
+                    if (numEscaneos === 1) {
+                        claseEstatus = 'etq-verde';
+                        textoEstatus = 'EN TURNO';
+                    } else if (numEscaneos === 2) {
+                        if (emp.tipoJornada === 'continua_sin_descanso' || (horarioHoy && horarioHoy.omitirDescanso)) {
+                            claseEstatus = 'etq-azul';
+                            textoEstatus = 'TURNO COMPLETADO';
+                        } else {
+                            claseEstatus = 'etq-naranja';
+                            textoEstatus = 'DESCANSO';
+                        }
+                    } else if (numEscaneos === 3) {
+                        claseEstatus = 'etq-verde';
+                        textoEstatus = 'EN TURNO';
+                    } else if (numEscaneos >= 4) {
+                        claseEstatus = 'etq-azul';
+                        textoEstatus = 'TURNO COMPLETADO';
+                    }
+
+                    // Evaluación de fin de jornada y Faltas Automáticas
+                    if (horarioHoy && horarioHoy.salida) {
+                        const [salHora, salMin] = horarioHoy.salida.split(':').map(Number);
+                        const horaSalidaDate = new Date(fechaMonitor.getFullYear(), fechaMonitor.getMonth(), fechaMonitor.getDate(), salHora, salMin, 0);
+                        
+                        if (ahora > horaSalidaDate) {
+                            if (numEscaneos === 0) {
+                                claseEstatus = 'etq-rojo';
+                                textoEstatus = 'FALTA INJUSTIFICADA';                                
+                                registrarFaltaAutomatica(emp, horarioHoy, fechaMonitor);
+                            } else if (numEscaneos === 1 || numEscaneos === 3) {
+                                claseEstatus = 'etq-rojo';
+                                textoEstatus = 'NO REGISTRO SALIDA';
+                            }
+                        }
+                    }
+
+                    tr.innerHTML = `
+                        <td>
+                            <strong>${emp.nombre}</strong>
+                            <span class="texto-secundario">${emp.codigo || emp.id}</span>
+                        </td>
+                        <td>${textoHorario}</td>
+                        <td>${htmlEscaneos}</td>
+                        <td><span class="etq-estatus ${claseEstatus}">${textoEstatus}</span></td>
+                        <td>
+                            <button class="btn-icon" title="Registrar Incidencia Manual">
+                                <img src="recursos/icono-editar.svg" alt="Registrar">
+                            </button>
+                        </td>
+                    `;
+                    tablaMonitorBody.appendChild(tr);
+                });
+
+            }, (error) => {
+                console.error("Error en el monitor:", error);
+            });
+    };
+
+    // Evento para cuando la Directora cambia la fecha en el input
+    if (inputFechaMonitor) {
+        inputFechaMonitor.addEventListener('change', (e) => {
+            if (e.target.value) {
+                cargarMonitorDiario(e.target.value);
+            }
+        });
+    }
+
+    configurarBuscador('buscadorMonitor', 'tablaMonitorBody');
 
 
 });
