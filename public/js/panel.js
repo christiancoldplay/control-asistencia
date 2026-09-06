@@ -1249,24 +1249,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================
     // 15. MÓDULO DE REPORTES Y CONSULTAS
     // ============================================
-    //Objetivo: Generar un reporte de incidencias (faltas, retardos, vacaciones, permisos) de empleados activos en un rango de fechas seleccionado.
-
-    // Función auxiliar para resetear el estado del reporte
-    window.limpiarVistaReporte = function() {
-        const formFiltros = document.getElementById('formFiltrosReporte');
-        const contenedorResultados = document.getElementById('contenedorResultadosReporte');
-        const tablaBody = document.getElementById('tablaReportesBody');
-
-        if (formFiltros) formFiltros.reset();
-        if (contenedorResultados) contenedorResultados.classList.add('hidden');
-        if (tablaBody) tablaBody.innerHTML = '';
-    };
-
-    // Evento para el botón "Limpiar"
-    const btnLimpiarReporte = document.getElementById('btnLimpiarReporte');
-    if (btnLimpiarReporte) {
-        btnLimpiarReporte.addEventListener('click', limpiarVistaReporte);
-    }
+    //Objetivo: Generar un reporte de incidencias (faltas, retardos, vacaciones, permisos) de empleados activos en un rango de fechas seleccionado.  
 
     // --- Referencias al DOM (variables globales del modulo)---
     const formFiltrosReporte = document.getElementById('formFiltrosReporte');
@@ -1291,7 +1274,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const fechaInicio = new Date(fechaInicioStr + "T00:00:00");// JS lo interpreta como la hora de inicio del dia
             const fechaFin = new Date(fechaFinStr + "T23:59:59");// JS lo interpreta como el ultimo segundo del dia (fin del dia)
             
-            if (new Date(fechaInicio) > new Date(fechaFin)) {
+            if (fechaInicio > fechaFin) {
                 alert("La Fecha de Inicio no puede ser mayor a la Fecha de Fin.");
                 return;
             }
@@ -1299,11 +1282,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Deshabilitamos el boton y cambiamos su texto para indicar que el proceso esta en ejecucion y evitar doble clic.
             btnSubmit.disabled = true;
             btnSubmit.textContent = "Calculando...";
-            tablaReportesBody.innerHTML = '<tr><td colspan="8" class="table-empty-state">Analizando base de datos...</td></tr>';
+            tablaReportesBody.innerHTML = '<tr><td colspan="9" class="table-empty-state">Analizando base de datos...</td></tr>';
             contenedorResultadosReporte.classList.remove('hidden');
 
-            try {                
- 
+            try {             
                 // --- 2. Consultar empleados --- 
                 // consultamos empleados con estatus activo
                 let consultaEmpleados = db.collection('empleados').where('estatus', '==', 'activo');
@@ -1315,7 +1297,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const snapshotEmpleados = await consultaEmpleados.get();
                 // si no hay empleados activos, se muestra mensaje y sale de la funcion
                 if (snapshotEmpleados.empty) {
-                    tablaReportesBody.innerHTML = '<tr><td colspan="8" class="table-empty-state">No se encontraron empleados activos para estos filtros.</td></tr>';
+                    tablaReportesBody.innerHTML = '<tr><td colspan="9" class="table-empty-state">No se encontraron empleados activos para estos filtros.</td></tr>';
                     return;
                 }
 
@@ -1331,9 +1313,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         nombre: emp.nombre,
                         departamento: emp.departamento,
                         faltas: 0,
-                        retardos: 0,
+                        tiempoRetardos: 0,
                         vacaciones: 0,
                         permisos: 0,
+                        tiempoAfectadoTotal: 0,
                         minutosLaborados: 0 
                     };
 
@@ -1352,8 +1335,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 // Restamos el descanso si no está marcado como omitido
                                 if (!h.omitirDescanso) {
                                     minDia -= (h.duracionDescansoMinutos || 0);
-                                }
-                                
+                                }                                
                                 reporteData[doc.id].minutosLaborados += minDia;
                             }
                         }
@@ -1376,17 +1358,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (reporteData[empID]) {
                         const tipo = incidencia.tipoIncidencia;
                         const minsAfectados = incidencia.horasAfectadas || 0;
-                        // contadores de la tabla
-                        if (tipo === 'falta_injustificada' || tipo === 'falta_justificada') {
-                            reporteData[empID].faltas++;
-                        } else if (tipo === 'retardo_injustificado' || tipo === 'retardo_justificado') {
-                            reporteData[empID].retardos++;
-                        } else if (tipo === 'vacaciones') {
-                            reporteData[empID].vacaciones++;
-                        } else if (tipo === 'permiso_con_goce' || tipo === 'permiso_sin_goce') {
-                            reporteData[empID].permisos++;
+
+                        //1. CALCULO DIAS MULTIPLES
+                        let diasIncidencia = 1;
+                        if (incidencia.fechaFin) {
+                            const start = incidencia.fechaInicio.toDate();
+                            const end = incidencia.fechaFin.toDate();
+                            // Normalizamos a medianoche para contar días exactos
+                            const startD = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+                            const endD = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+                            diasIncidencia = Math.floor((endD - startD) / (1000 * 60 * 60 * 24)) + 1;
                         }
-                        // tipos de incidencias (suma o restan minutos laborados)
+
+                        // Sumamos al total de horas afectadas
+                        reporteData[empID].tiempoAfectadoTotal += minsAfectados;
+
+                        // 2. DISTRIBUCION DE INCIDENCIAS
+                        if (tipo === 'falta_injustificada' || tipo === 'falta_justificada') {
+                            reporteData[empID].faltas += diasIncidencia;
+                        } else if (tipo === 'retardo_injustificado' || tipo === 'retardo_justificado') {
+                            reporteData[empID].tiempoRetardos += minsAfectados;
+                        } else if (tipo === 'vacaciones') {
+                            reporteData[empID].vacaciones += diasIncidencia;
+                        } else if (tipo === 'permiso_con_goce' || tipo === 'permiso_sin_goce') {
+                            reporteData[empID].permisos += diasIncidencia;
+                        }
+
+                        // 3. MATEMATICAS DE HORAS LABORADAS
+                        // - tipos de incidencias (suma o restan minutos laborados)
                         const tiposResta = ['falta_injustificada', 'retardo_injustificado', 'permiso_sin_goce', 'salida_anticipada'];
                         const tiposSuma = ['hora_extra', 'recuperacion_horas', 'compensacion_hora_extra'];
                         // Nota: Las incidencias tipos: falta_justificada, 'vacaciones' y 'permiso_con_goce' fueron omitidas intencionalmente
@@ -1401,15 +1400,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 // --- 6. Desarrollo de la tabla del reporte ---
-                // limpiamos la tabla
                 tablaReportesBody.innerHTML = '';
                 
-                // Convertir el diccionario a un Array para poder ordenarlo alfabéticamente
-                // - Object.entries(reporteData) convierte un objeto en un array de pares [clave, valor]. 
-                // EJ: [ [ id (clave), {propiedad1: valor, propiedad2: valor, ...}]]
-                // - .map(([id, datos]) => ({ id, ...datos })) transforma cada par clave, valor en un objeto plano, combina el ID y los datos 
-                // se obtiene un array de objetos. 
-                // EJ: [ {id:valor, propiedad1:valor, propiedad2:valor,...}, { id2:valor, propiedad1:valor, propiedad2:valor,...} ]
+                // Convertir el diccionario a un Array para poder ordenarlo alfabéticamente                
                 const empleadosArray = Object.entries(reporteData).map(([id, datos]) => ({ id, ...datos }));
                 empleadosArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
@@ -1418,9 +1411,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const tr = document.createElement('tr');
                     
                     // Resalta toda la fila si el empleado tiene 3 o mas faltas
-                    if (emp.faltas >= 3) {
-                        tr.classList.add('alerta-faltas');
-                    }
+                    if (emp.faltas >= 3) tr.classList.add('alerta-faltas');
 
                     // Formatear minutos a horas, minutos (HH:MM)
                     const absMinutos = Math.abs(emp.minutosLaborados);
@@ -1435,10 +1426,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     tr.innerHTML = `
                         <td><strong>${emp.nombre}</strong></td>
                         <td>${emp.departamento}</td>
-                        <td class="${emp.faltas >= 3 ? 'alerta-texto' : ''}">${emp.faltas}</td> <!-- muestra el numero de faltas y lo resalta en rojo si es mayor a 3 -->
-                        <td>${emp.retardos}</td>
+                        <td class="${emp.faltas >= 3 ? 'alerta-texto' : ''}">${emp.faltas}</td> 
+                        <td>${formatearMinutos(emp.tiempoRetardos)}</td>
                         <td>${emp.vacaciones}</td>
                         <td>${emp.permisos}</td>
+                        <td>${formatearMinutos(emp.tiempoAfectadoTotal)}</td>
                         <td><strong>${horasFormateadas}</strong></td> 
                         <td>
                             <button class="btn-icon" onclick="verDetallesReporte('${emp.id}')" title="Ver Detalle">
@@ -1456,8 +1448,8 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 // --- Manejo de errores ---
                 console.error("Error al generar reporte:", error);
-                alert("Ocurrió un error al calcular los datos. Revisa la consola.");
-                tablaReportesBody.innerHTML = '<tr><td colspan="8" class="table-empty-state estatus-inactivo">Error al generar el reporte.</td></tr>';
+                alert("Ocurrió un error al calcular los datos.");
+                tablaReportesBody.innerHTML = '<tr><td colspan="9" class="table-empty-state estatus-inactivo">Error al generar el reporte.</td></tr>';
             } finally {
                 // Restaurar el botón
                 btnSubmit.disabled = false;
@@ -1537,6 +1529,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 // -- 6. Agrupar incidencias por tipo --
                 // creamo un objeto vacio para agrupar las incidencias
                 const incidenciasAgrupadas = {};
+                //variable para el total del modal
+                let totalMinutosAfectadosModal = 0;
+
                 // recorremos cada incidencia encontrada en la consulta    
                 snapshotIncidencias.forEach(doc => {
                     //extraemos los datos de la incidencia
@@ -1549,33 +1544,53 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     // agregamos la incidencia al array de su tipo correspondiente
                     incidenciasAgrupadas[tipo].push(inc);
+
+                    totalMinutosAfectadosModal += (inc.horasAfectadas || 0);
                 });
                 
-                // --- 7. Generar el HTML agrupado para mostrar ---
-                // Object(entries) es un metodo JS que convierte un objeto en un array de pares [clave, valor]
-                // asi obtenemos un array con varios elementos con la estructura:
-                // [ ['clave1', [{tipo1:valor, fecha:valor}, {tipo2:valor, fecha:valor}]], ['clave2',[{...},{...}]],... ]
+                // --- 7. Generar el HTML agrupado para mostrar ---                
                 for (const [tipo, lista] of Object.entries(incidenciasAgrupadas)) {
-                    // formatear el titulo del tipo, reemplazamos guion bajo por espacio. Es mas legible.
-                    // (ej. "falta_injustificada" -> "falta injustificada")
-                    const tituloTipo = tipo.replace(/_/g, ' ');
+                    // formateamos el titulo del tipo, reemplazamos '_' por ' '. 
+                    const tituloTipo = tipo.replace(/_/g, ' ').toUpperCase();
+
+                    // 1. Calcular el conteo real sumando los días que abarca cada incidencia
+                    let conteoReal = 0;
+                    lista.forEach(inc => {
+                        let diasIncidencia = 1; // Por defecto, una incidencia vale 1 día/evento
+                        if (inc.fechaFin) {
+                            const start = inc.fechaInicio.toDate();
+                            const end = inc.fechaFin.toDate();
+                            // Normalizamos a medianoche para contar días exactos
+                            const startD = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+                            const endD = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+                            diasIncidencia = Math.floor((endD - startD) / (1000 * 60 * 60 * 24)) + 1;
+                        }
+                        conteoReal += diasIncidencia;
+                    });
 
                     // Construccion del HTML del grupo
-                    // Iniciamos el HTML con el titulo del tipo y el numero de incidencias
-                    let htmlGrupo = `<h4 class="reporte-tipo-titulo">${tituloTipo} (${lista.length})</h4>`;
-                    htmlGrupo += `<ul class="reporte-lista">`;// abrimos la lista
+                    // 2. Imprimir el titulo con el conteo de dias abarcados por la incidencia
+                    let htmlGrupo = `<h4 class="reporte-tipo-titulo">${tituloTipo} (${conteoReal})</h4>`;
+                    htmlGrupo += `<ul class="reporte-lista">`;
 
-                    // Recorremos cada incidencia del grupo
+                    // 3. Imprimir las tarjetas
                     lista.forEach(inc => {
                         // convertimos la fecha (Timestamp/Firestore) a objeto Date
                         const fechaObj = inc.fechaInicio.toDate();
                         // formeateamos la fecha al formato DD/MM/YYYY
-                        const fechaFormateada = fechaObj.toLocaleDateString('es-MX');
+                        let fechaFormateada = fechaObj.toLocaleDateString('es-MX');
+                        
+                        // Si tiene fecha de fin, mostramos el rango
+                        if (inc.fechaFin) {
+                            const fechaFinObj = inc.fechaFin.toDate();
+                            fechaFormateada += ` al ${fechaFinObj.toLocaleDateString('es-MX')}`;
+                        }
+
                         // obtenemos el motivo de la incidencia o un mensaje 
                         const motivo = inc.motivo || 'Sin motivo registrado';
                         // mostramos las horas afectadas (en minutos) o 'N/A' si no hay
-                        const horas = inc.horasAfectadas ? `${formatearMinutos(inc.horasAfectadas)} min afectadas` : 'N/A';
-                        // Si la incidencia tiene estatus, la limpiamos tambien
+                        const horas = inc.horasAfectadas ? `${formatearMinutos(inc.horasAfectadas)} afectadas` : 'N/A';
+                        //Si la incidencia tiene estatus, la limpiamos tambien
                         let estatusIncidencia = "";
                         if (inc.estatus) {
                             estatusIncidencia = ` | Estatus: ${inc.estatus.replace(/_/g, ' ').toUpperCase()} `;
@@ -1586,7 +1601,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         htmlGrupo += `
                             <li class="reporte-item">
                                 <div class="reporte-item-header">
-                                    <span>Fecha: ${fechaFormateada}</span>
+                                    <span>Fecha: ${fechaFormateada}${estatusIncidencia}</span>
                                     <span class="etq-horas">${horas}</span>
                                 </div>
                                 <div class="reporte-item-motivo">Motivo: ${motivo}</div>
@@ -1598,6 +1613,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     // agregamos el HTML del grupo al contenedor de incidencias
                     contenedorIncidencias.innerHTML += htmlGrupo;
                 }
+
+                // Agregar el resumen total al final de las incidencias
+                contenedorIncidencias.innerHTML += `
+                    <div class="resumen-afectaciones-caja">
+                        <h4 class="detalle-seccion-titulo">Resumen de Afectaciones</h4>
+                        <p class="reporte-texto-obs"><strong>Total de Tiempo Afectado:</strong> ${formatearMinutos(totalMinutosAfectadosModal)}</p>
+                    </div>
+                `;
             }
 
             // -- 8. Mostrar el Modal --
@@ -1618,6 +1641,23 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('modalDetallesReporte').classList.add('hidden');
         });
     }
+
+    // Funcion auxiliar para resetear el estado del reporte
+    window.limpiarVistaReporte = function() {
+        const formFiltros = document.getElementById('formFiltrosReporte');
+        const contenedorResultados = document.getElementById('contenedorResultadosReporte');
+        const tablaBody = document.getElementById('tablaReportesBody');
+
+        if (formFiltros) formFiltros.reset();
+        if (contenedorResultados) contenedorResultados.classList.add('hidden');
+        if (tablaBody) tablaBody.innerHTML = '';
+    };
+
+    const btnLimpiarReporte = document.getElementById('btnLimpiarReporte');
+    if (btnLimpiarReporte) {
+        btnLimpiarReporte.addEventListener('click', limpiarVistaReporte);
+    }
+    
 
     // ============================================
     // 16. EXPORTACIÓN DE REPORTES (PDF y CSV)

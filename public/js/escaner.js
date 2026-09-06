@@ -6,6 +6,23 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let escannerActivo = null; // Guardará la instancia de la cámara
 
+    // --- FUNCIÓN AUXILIAR: Formatear minutos a Horas y Minutos (UX) ---
+    function formatearMinutos(totalMinutos) {
+        if (!totalMinutos || totalMinutos === 0) return '0 min';
+        
+        const horas = Math.floor(totalMinutos / 60);
+        const minutos = totalMinutos % 60;
+        
+        let texto = '';
+        if (horas > 0) {
+            texto += `${horas} hora${horas > 1 ? 's' : ''}`;
+        }
+        if (minutos > 0) {
+            texto += ` ${minutos} min`;
+        }
+        return texto.trim();
+    }
+
     // ============================================
     // 1. PROTECCIÓN DE RUTA (Auth Guard)
     // ============================================
@@ -163,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         fechaInicio: firebase.firestore.Timestamp.fromDate(ahora),
                         horasAfectadas: minutosRetardo,
                         autorizantes: 'Sistema Automático',
-                        motivo: `El empleado registró su entrada tarde. Tuvo un retardo de: ${minutosRetardo} mins. Su hora de entrada debe ser a las: ${horarioHoy.entrada}.`,
+                        motivo: `El empleado registró su entrada tarde. Tuvo un retardo de: ${formatearMinutos(minutosRetardo)}.`,
                         estatus: 'aprobada',
                         fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
                         registradoPor: 'sistema@linguatec.com'

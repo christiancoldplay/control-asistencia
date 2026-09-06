@@ -813,7 +813,7 @@ legend {
     border-radius: 6px;
     padding: 10px 15px;
     margin-bottom: 8px;
-    font-size: 13px;
+    font-size: 14px;
 }
 
 .reporte-item-header {
@@ -931,4 +931,17 @@ legend {
 
 .lista-escaneos li {
     margin-bottom: 2px;
+}
+
+/* Caja de resumen al final del modal de detalles del reporte */
+.resumen-afectaciones-caja {
+    background-color: #f0f4f8;
+    border-left: 4px solid var(--color-primary);
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 20px;
+}
+
+.resumen-afectaciones-caja h4 {
+    margin-top: 0;
 }
