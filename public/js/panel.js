@@ -1983,70 +1983,161 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    
+    // C. Cargar y Mostrar Incidencias (Con Paginación)    
+    // Variables globales para la paginación
 
-    // C. Cargar y Mostrar Incidencias
-    // Usa onSnapshot para escuchar cambios en Firestore y actualizar la tabla automaticamente 
+    // Arreglo que contendra todos los objetos de incidencias obtenidos de firestore
+    let todasLasIncidencias = [];
+    // Numero que indica en que pagina se encuentra el usuario actualmente
+    let paginaActualIncidencias = 1;
+    // Define cuantas incidencias se mostraran por pagina
+    const incidenciasPorPagina = 8;
+    // referencia a los elementos del DOM que controlan la paginacion
+    const controlesPaginacion = document.getElementById('controlesPaginacionIncidencias');
+    const btnPaginaAnterior = document.getElementById('btnPaginaAnterior');
+    const btnPaginaSiguiente = document.getElementById('btnPaginaSiguiente');
+    const textoPaginacion = document.getElementById('textoPaginacion');
+    
+    // Funcion que escucha los cambios en la coleccion 'incidencias' de firestore en tiempo real
+    // cuando los datos cambian, se actualiza el arreglo 'todasLasIncidencias' y se renderiza la pagina actual.
     window.cargarIncidencias = function() {
+        // verifica que el elemento exista en el DOM
         if (!tablaIncidenciasBody) return;
 
-        // Consultamos ordenando por fecha de creación (las más recientes primero)
-        db.collection('incidencias').orderBy('fechaCreacion', 'desc').onSnapshot((consulta) => {
-            // limpiamos la tabla antes de dibujar
-            tablaIncidenciasBody.innerHTML = ''; 
-            // si no hay incidencias, mostramos mensaje
-            if (consulta.empty) {
-                tablaIncidenciasBody.innerHTML = `<tr><td colspan="6" class="table-empty-state">No hay incidencias registradas.</td></tr>`;
-                return;
-            }
-            //recorremos cada incidencia y la agregamos a la tabla
+        // Ordenamos por la fecha real del evento, no por cuando se creó en sistema
+        db.collection('incidencias').orderBy('fechaInicio', 'desc').onSnapshot((consulta) => {
+            todasLasIncidencias = []; 
+            // recorrer los documentos obtenidos y agregarlos al arreglo
             consulta.forEach((doc) => {
-                const inc = doc.data();
-                const tr = document.createElement('tr');
-                
-                // Formatear la fecha de inicio
-                let fechaTexto = "Fecha pendiente";
-                if (inc.fechaInicio) {
-                    fechaTexto = inc.fechaInicio.toDate().toLocaleDateString('es-MX');
-                }
-
-                // Limpiar el texto del tipo para mejorar legibilidad
-                const tipoTexto = inc.tipoIncidencia.replace(/_/g, ' ').toUpperCase();
-                const estatusTexto = inc.estatus.replace(/_/g, ' ').toUpperCase();
-
-                // Programacion defensiva para nombre e ID
-                const nombreEmp = inc.empleadoNombre || 'Empleado desconocido';
-                const idEmp = inc.empleadoID || 'ID desconocido';
-
-                // construir la fila
-                tr.innerHTML = `
-                    <td>${fechaTexto}</td>
-                    <td><strong>${nombreEmp}</strong>
-                    <span class="texto-secundario">${idEmp}</span>
-                    </td>
-                    <td style="font-size: 14px;">${tipoTexto}</td>
-                    <td>${formatearMinutos(inc.horasAfectadas)}</td>
-                    <td><span style="font-size: 14px;">${estatusTexto}</span></td>
-                    <td>
-                        <!-- Boton de Editar -->
-                        <button class="btn-icon" onclick="editarIncidencia('${doc.id}')" title="Editar">
-                            <img src="recursos/icono-editar.svg" alt="Editar">
-                        </button>
-                        <!-- Boton de Ver Detalles -->
-                        <button class="btn-icon" onclick="verDetallesIncidencia('${doc.id}')" title="Ver Detalles">
-                            <img src="recursos/icono-ver.svg" alt="Ver">
-                        </button>
-                        <!-- Boton de Eliminar -->
-                        <button class="btn-icon icon-danger" title="Eliminar (Pendiente)">
-                            <img src="recursos/icono-baja.svg" alt="Eliminar">
-                        </button>
-                    </td>
-                `;
-                tablaIncidenciasBody.appendChild(tr);
+                // guardamos el id del documento junto con sus datos en un nuevo objeto por documento
+                todasLasIncidencias.push({ id: doc.id, ...doc.data() });
             });
+
+            // -- control de pagina actual --
+            // - se calcula el numero total de paginas segun la cantidad de incidencias
+            // - si no hay incidencias. 'totalPaginas' es 1
+            const totalPaginas = Math.ceil(todasLasIncidencias.length / incidenciasPorPagina) || 1;
+            // se ajusta a la ultima pagina valida, para evitar mostrar una pagina vacia
+            if (paginaActualIncidencias > totalPaginas) {
+                paginaActualIncidencias = totalPaginas;
+            }
+            // renderizar los datos de la pagina actual en la interfaz
+            renderizarPaginaIncidencias();
+            
         }, (error) => {
             console.error("Error al cargar incidencias:", error);
         });
     };
+
+    // Función que dibuja solo los 8 elementos que tocan en la página actual
+    function renderizarPaginaIncidencias() {
+        // limpia el contenido para evitar duplicados
+        tablaIncidenciasBody.innerHTML = ''; 
+        // caso 1: no hay incidencias registradas
+        // se muestra un mensaje en la tabla y se ocultan los controles de paginacion
+        if (todasLasIncidencias.length === 0) {
+            tablaIncidenciasBody.innerHTML = `<tr><td colspan="6" class="table-empty-state">No hay incidencias registradas.</td></tr>`;
+            if (controlesPaginacion) controlesPaginacion.classList.add('hidden');
+            return;
+        }
+        // -- caso 2: Hay incidencias, mostrar los controles de paginacion --
+        if (controlesPaginacion) controlesPaginacion.classList.remove('hidden');
+        // calcular los indices para extrer un subconjutno de datos para la pagina actual
+        // 'indiceInicio': primer elemento de la pagina 
+        const indiceInicio = (paginaActualIncidencias - 1) * incidenciasPorPagina;
+        // 'indiceFin': ultimo elemento de la pagina
+        const indiceFin = indiceInicio + incidenciasPorPagina;
+        // se obtiene el subconjunto con los indices previamente definidos
+        const incidenciasA_Mostrar = todasLasIncidencias.slice(indiceInicio, indiceFin);
+        
+        // generar las filas de la tabla para cada incidencia del subconjunto 'incidenciasAMostrar' 
+        incidenciasA_Mostrar.forEach((inc) => {
+            // crear una nueva fila de la tabla
+            const tr = document.createElement('tr');
+            // -- Formateo de los datos --
+            let fechaTexto = "Fecha pendiente";
+            if (inc.fechaInicio) {
+                // - 'toDate' convierte el timeStamp de firestore a un objeto Date JS
+                fechaTexto = inc.fechaInicio.toDate().toLocaleDateString('es-MX');
+            }
+
+            // Formatear el tipo de incidencia 
+            const tipoTexto = inc.tipoIncidencia.replace(/_/g, ' ').toUpperCase();
+            // formatear el estatus
+            const estatusTexto = inc.estatus.replace(/_/g, ' ').toUpperCase();
+            // obtener el nombre del empleado
+            const nombreEmp = inc.empleadoNombre || 'Empleado Desconocido';
+            // obtener el ID del empleado
+            const idEmp = inc.empleadoID || 'Sin ID';
+
+            // contruir el HTML de la fila
+            tr.innerHTML = `
+                <td>${fechaTexto}</td>
+                <td>
+                    <strong>${nombreEmp}</strong>
+                    <span class="texto-secundario">${idEmp}</span>
+                </td>
+                <td style="font-size: 12px;">${tipoTexto}</td>
+                <td>${formatearMinutos(inc.horasAfectadas)}</td>
+                <td><span class="estatus-${inc.estatus}">${estatusTexto}</span></td>
+                <td>
+                    <button class="btn-icon" onclick="editarIncidencia('${inc.id}')" title="Editar">
+                        <img src="recursos/icono-editar.svg" alt="Editar">
+                    </button>
+                    <button class="btn-icon" onclick="verDetallesIncidencia('${inc.id}')" title="Ver Detalles">
+                        <img src="recursos/icono-ver.svg" alt="Ver">
+                    </button>
+                    <button class="btn-icon icon-danger" title="Eliminar (Próximamente)">
+                        <img src="recursos/icono-baja.svg" alt="Eliminar">
+                    </button>
+                </td>
+            `;
+            // agregar la fila al tbody de la tabla
+            tablaIncidenciasBody.appendChild(tr);
+        });
+        // actualizar el estado de los botones de la paginacion
+        actualizarBotonesPaginacion();
+    }
+
+    function actualizarBotonesPaginacion() {
+        // calcular el numero total de paginas
+        // si no hay incidencias el total es 1
+        const totalPaginas = Math.ceil(todasLasIncidencias.length / incidenciasPorPagina) || 1;
+        // actualizar el texto de la pagina
+        textoPaginacion.textContent = `Página ${paginaActualIncidencias} de ${totalPaginas}`;
+        // deshabilita el boton "Anterior" si estamos en la primera pagina
+        btnPaginaAnterior.disabled = paginaActualIncidencias === 1;
+        // deshabilitar el boton "Siguiente" si estamos en la ultima pagina
+        btnPaginaSiguiente.disabled = paginaActualIncidencias === totalPaginas;
+    }
+
+    // Eventos de los botones de paginación, 
+    // pemiten al usuario navegar entre las paginas haciendo clic en los botones
+    if (btnPaginaAnterior && btnPaginaSiguiente) {
+        // evento para el boton "Anterior"
+        btnPaginaAnterior.addEventListener('click', () => {
+            // solo navegar si no estamos en la primera pagina
+            if (paginaActualIncidencias > 1) {
+                // decrementar la pagina actual
+                paginaActualIncidencias--;
+                // redibujar la tabla con los datos de la nueva pagina
+                renderizarPaginaIncidencias();
+            }
+        });
+        // evento para el boton "Siguiente"
+        btnPaginaSiguiente.addEventListener('click', () => {
+            // calcular el numero total de paginas
+            const totalPaginas = Math.ceil(todasLasIncidencias.length / incidenciasPorPagina);
+            // solo navegar si no estamos en la ultima pagina
+            if (paginaActualIncidencias < totalPaginas) {
+                // incrementar la pagina actual
+                paginaActualIncidencias++;
+                // redibujar la tabla con los datos de la nueva pagina
+                renderizarPaginaIncidencias();
+            }
+        });
+    }
 
      // D. Editar Incidencia (Cargar datos al formulario)
      // Objetivo: cargar los datos de una incidencia existente en el formulario para que el usuario pueda modificarla y actualizarla en Firestore.     

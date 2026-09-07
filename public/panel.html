@@ -339,7 +339,7 @@
                 <!-- SUB-VISTA A: LISTADO DE INCIDENCIAS -->
                 <div id="vistaListaIncidencias" class="card-container">
                     <div class="card-header-flex">
-                        <h3>Historial de Incidencias</h3>
+                        <h3>Registro Histórico</h3>
                         <div class="header-acciones">
                             <input type="text" id="buscadorIncidencias" class="buscador-input" placeholder="Buscar incidencia...">
                             <button id="btnMostrarFormIncidencia" class="btn-primary btn-auto">Registrar Incidencia</button>
@@ -364,6 +364,13 @@
                                 </tr>
                             </tbody>
                         </table>
+                        
+                        <!-- Controles de Paginación -->
+                        <div class="paginacion-contenedor hidden" id="controlesPaginacionIncidencias">
+                            <button id="btnPaginaAnterior" class="btn-secundario btn-auto">Anterior</button>
+                            <span id="textoPaginacion" class="paginacion-texto">Página 1 de 1</span>
+                            <button id="btnPaginaSiguiente" class="btn-secundario btn-auto">Siguiente</button>
+                        </div>
                     </div>
                 </div>
 
@@ -371,7 +378,7 @@
                 <div id="vistaFormularioIncidencia" class="card-container hidden">
                     <div class="card-header-flex">
                         <h3 id="tituloFormIncidencia">Registrar Nueva Incidencia</h3>
-                        <button id="btnVolverListaIncidencias" class="btn-logout btn-auto m-0">Volver a la lista de incidencias</button>
+                        <button id="btnVolverListaIncidencias" class="btn-logout btn-auto m-0">Volver a la lista</button>
                     </div>
                     
                     <form id="formRegistroIncidencia" class="admin-form">
@@ -395,8 +402,8 @@
                                         <option value="permiso_con_goce">Permiso con Goce de Sueldo</option>
                                         <option value="permiso_sin_goce">Permiso sin Goce de Sueldo</option>
                                         <option value="vacaciones">Vacaciones</option>
-                                        <option value="incapacidad">Incapacidad</option>
-                                        <option value="hora_extra">Hora Extra</option>
+                                        <option value="incapacidad">Incapacidad Médica</option>
+                                        <option value="hora_extra">Hora Extra (Crédito)</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
@@ -410,7 +417,7 @@
                                 <div class="form-group">
                                     <label for="incHorasAfectadas">Horas Afectadas (En minutos) *</label>
                                     <input type="number" id="incHorasAfectadas" min="0" required>
-                                    <small class="form-instructions">Ej. 60 = 1 hora, 120 = 2 horas</small>
+                                    <small class="form-instructions">Ej. 1 hora = 60, 1 día = 480</small>
                                 </div>
                                 <div class="form-group">
                                     <label for="incAutorizantes">Autorizado por (Nombre y Cargo)</label>
