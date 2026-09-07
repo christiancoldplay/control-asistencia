@@ -180,8 +180,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         fechaInicio: firebase.firestore.Timestamp.fromDate(ahora),
                         horasAfectadas: minutosRetardo,
                         autorizantes: 'Sistema Automático',
-                        motivo: `El empleado registró su entrada tarde. Tuvo un retardo de: ${formatearMinutos(minutosRetardo)}.`,
-                        estatus: 'aprobada',
+                        motivo: null,
+                        estatus: 'pendiente_de_revision',
+                        saldoPendiente: null,
                         fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
                         registradoPor: 'sistema@linguatec.com'
                     });

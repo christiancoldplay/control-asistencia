@@ -1376,7 +1376,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         // 2. DISTRIBUCION DE INCIDENCIAS
                         if (tipo === 'falta_injustificada' || tipo === 'falta_justificada') {
                             reporteData[empID].faltas += diasIncidencia;
-                        } else if (tipo === 'retardo_injustificado' || tipo === 'retardo_justificado') {
+                            // solo sumamos los retardos injustificados a los mins Afectados
+                        } else if (tipo === 'retardo_injustificado') {
                             reporteData[empID].tiempoRetardos += minsAfectados;
                         } else if (tipo === 'vacaciones') {
                             reporteData[empID].vacaciones += diasIncidencia;
@@ -1906,6 +1907,28 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Variables de estado para el Banco de Horas
+    let estatusIncidenciaOriginal = null;
+    const cajaRecuperacionHoras = document.getElementById('cajaRecuperacionHoras');
+    const incAutorizarRecuperacion = document.getElementById('incAutorizarRecuperacion');
+    const textoCheckboxRecuperacion = document.getElementById('textoCheckboxRecuperacion');
+
+    // Función auxiliar para cambiar el texto del checkbox dinámicamente
+    function actualizarTextoCheckboxBanco() {
+        if (incAutorizarRecuperacion.checked) {
+            textoCheckboxRecuperacion.textContent = "Desmarque la casilla si desea desaprobar la recuperacion de horas de la incidencia)";
+            textoCheckboxRecuperacion.style.color = "#9b2c2c"; 
+        } else {
+            textoCheckboxRecuperacion.textContent = "Autorizar recuperación de este tiempo.";
+            textoCheckboxRecuperacion.style.color = "var(--color-primary)";
+        }
+    }
+
+    // Escuchar cuando la Directora le da clic al checkbox
+    if (incAutorizarRecuperacion) {
+        incAutorizarRecuperacion.addEventListener('change', actualizarTextoCheckboxBanco);
+    }
+
     // B. Guardar o Actualizar Incidencia en Firestore
     // Cuando el usuario envia el formulario, se crea un nuevo documento
     // en la coleccion 'incidencias' de Firestore.
@@ -1921,18 +1944,23 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 // 1. obtener la opcion seleccionada del select
                 const opcionSeleccionada = selectIncEmpleado.options[selectIncEmpleado.selectedIndex];
-                
+                // 
+                const empleadoID = opcionSeleccionada.value;
+                //
+                const tipoIncidencia = document.getElementById('incTipo').value;
+                //
+                const horasAfectadas = parseInt(document.getElementById('incHorasAfectadas').value) || 0;                
                 // 2. Construir el objeto de la incidencia
                 const incidenciaData = {
                     // Datos del empleado
-                    empleadoID: opcionSeleccionada.value,
+                    empleadoID: empleadoID,
                     empleadoNombre: opcionSeleccionada.getAttribute('data-nombre'),
 
                     // Datos de la incidencia
-                    tipoIncidencia: document.getElementById('incTipo').value,
+                    tipoIncidencia: tipoIncidencia,
                     // convertimos la fecha de string a timestamp de firestore (inicio del dia)
                     fechaInicio: firebase.firestore.Timestamp.fromDate(new Date(document.getElementById('incFechaInicio').value + "T00:00:00")),
-                    horasAfectadas: parseInt(document.getElementById('incHorasAfectadas').value) || 0,
+                    horasAfectadas: horasAfectadas,
                     autorizantes: document.getElementById('incAutorizantes').value.trim(),
                     motivo: document.getElementById('incMotivo').value.trim()
                     // Campos automaticos 
@@ -1949,26 +1977,53 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Solo usamos delete si estamos editando un documento que ya existe
                     incidenciaData.fechaFin = firebase.firestore.FieldValue.delete();
                 }
-                // Si estamos creando una incidencia nueva, y el campo fechaFin esta vacio, no se agrega al objeto.
+                
+                // -- LOGICA DE ESTATUS Y BANCO DE HORAS --
+                const tiposJustificados = ['falta_justificada', 'retardo_justificado', 'permiso_con_goce', 'vacaciones', 'incapacidad', 'hora_extra'];
+                let estatusFinal = 'aprobada'; 
 
                 if (incidenciaEditandoID) {
+                    if (tiposJustificados.includes(tipoIncidencia)) {
+                        estatusFinal = 'aprobada';
+                    } else if (incAutorizarRecuperacion.checked){
+                        estatusFinal = 'pendiente de compensar';
+                        incidenciaData.saldoPendiente = horasAfectadas;
+                    } else {
+                        estatusFinal = 'revisada';
+                        incidenciaData.saldoPendiente = firebase.firestore.FieldValue.delete();
+                    }
+
+                    incidenciaData.estatus = estatusFinal;
+
                     // MODO EDICION: Actualizamos el documento existente.
                     await db.collection('incidencias').doc(incidenciaEditandoID).update(incidenciaData);
-                    alert("Incidencia actualizada exitosamente.");
+
+                    // -- Actualizar saldo del empleado --
+                    if (estatusIncidenciaOriginal !== 'pendiente_de_compensar' && estatusFinal === 'pendiente_de_compensar') {
+                        await db.collection('empleados').doc(empleadoID).update({
+                            saldoPendiente: firebase.firestore.FieldValue.increment(horasAfectadas)
+                        });
+                    } else if (estatusIncidenciaOriginal === 'pendiente_de_compensar' && estatusFinal !== 'pendiente_de_compensar'){
+                        await db.collection('empleados').doc(empleadoID).update({
+                            saldoPendiente: firebase.firestore.FieldValue.increment(-horasAfectadas)
+                        });
+                    }
+
+                    alert("Incidencia actualizada y banco de horas ajustado exitosamente.");
                 } else {
                     // MODO CREACION: Agregamos campos automaticos y creamos documento nuevo
                     incidenciaData.estatus = 'aprobada';
                     incidenciaData.fechaCreacion = firebase.firestore.FieldValue.serverTimestamp();
                     // proteccion para obtener el correo del administrador
                     const usuarioActual = firebase.auth().currentUser;
+                    incidenciaData.registradoPor = (usuarioActual && usuarioActual.email) ? usuarioActual.email : document.getElementById('userNameDisplay').textContent;
                     const correoAdmin = (usuarioActual && usuarioActual.email) ? usuarioActual.email : document.getElementById('userNameDisplay').textContent;
-
                     incidenciaData.registradoPor = correoAdmin;
 
                     // Guardar en Firestore (Colección 'incidencias')
                     await db.collection('incidencias').add(incidenciaData);
                     alert("Incidencia registrada exitosamente.");
-                }
+                 }
                                 
                 // Regresa a la lista y limpia el formulario                
                 btnVolverListaIncidencias.click(); 
@@ -2133,7 +2188,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (paginaActualIncidencias < totalPaginas) {
                 // incrementar la pagina actual
                 paginaActualIncidencias++;
-                // redibujar la tabla con los datos de la nueva pagina
+                // redibujar la tabla con los datos de la nueva pagina 
                 renderizarPaginaIncidencias();
             }
         });
@@ -2151,6 +2206,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // guardamos el id en una variable global, que sera usada en el evento submit del formulario para saber si estamos creando
             // o editando una incidencia.
             incidenciaEditandoID = id;
+            estatusIncidenciaOriginal = inc.estatus;
 
             // -- 1. Cargar empleados activos en el <select>. -- 
             // Esto permite que el usuario pueda cambiar el empleado asociado a la incidencia si es necesario. 
@@ -2186,6 +2242,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 // si no tiene fecha de fin (incidencia de un dia), limpiamos el campo
                 document.getElementById('incFechaFin').value = "";
             }
+
+            // -- Logica visual de checkbox de recuperacion de horas --
+            const tiposNegativos = ['falta_injustificada', 'retardo_injustificado', 'permiso_sin_goce'];
+            if (tiposNegativos.includes(inc.tipoIncidencia)) {
+                cajaRecuperacionHoras.classList.remove('hidden');
+                incAutorizarRecuperacion.checked = (inc.estatus === 'pendiente_de_compensar');
+                actualizarTextoCheckboxBanco(); // Actualizamos el texto según el estado inicial
+            } else {
+                cajaRecuperacionHoras.classList.add('hidden');
+                incAutorizarRecuperacion.checked = false;
+            }
+
+            // Escuchar cambios en el select de tipo para ocultar/mostrar el checkbox
+            document.getElementById('incTipo').addEventListener('change', (e) => {
+                if (tiposNegativos.includes(e.target.value)) {
+                    cajaRecuperacionHoras.classList.remove('hidden');
+                    actualizarTextoCheckboxBanco();
+                } else {
+                    cajaRecuperacionHoras.classList.add('hidden');
+                    incAutorizarRecuperacion.checked = false;
+                }
+            });
 
             // -- 3. Cambiar la interfaz a "modo edición" --
             // cambiamos el titulo del formulario y el texto del boton de envio
@@ -2339,8 +2417,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 fechaInicio: firebase.firestore.Timestamp.fromDate(new Date(`${fechaStr}T00:00:00`)),
                 horasAfectadas: minutosAfectados,
                 autorizantes: 'Sistema Automático',
-                motivo: 'El empleado no registró asistencia durante su jornada.',
-                estatus: 'aprobada',
+                motivo: null,
+                estatus: 'pendiente_de_revision',
+                saldoPendiente: null,
                 fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
                 registradoPor: 'sistema@linguatec.com'
             });

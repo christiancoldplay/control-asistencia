@@ -970,3 +970,39 @@ legend {
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* ============================================
+   CAJA DE BANCO DE HORAS (INCIDENCIAS)
+   ============================================ */
+.caja-banco-horas {
+    background-color: #fffbeb;
+    border-left: 4px solid #f59e0b;
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 20px;
+    grid-column: 1 / -1; 
+}
+
+.label-checkbox-banco {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    color: var(--color-primary);
+    font-size: 15px;
+}
+
+.checkbox-banco {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.texto-instruccion-banco {
+    margin-top: 8px;
+    margin-bottom: 0;
+    font-size: 13px;
+    color: var(--color-text-light);
+    line-height: 1.4;
+}
