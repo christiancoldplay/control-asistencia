@@ -1453,8 +1453,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             const endD = new Date(end.getFullYear(), end.getMonth(), end.getDate());
                             diasIncidencia = Math.floor((endD - startD) / (1000 * 60 * 60 * 24)) + 1;
                         }
-
-                        if (tipo === 'falta_injustificada' || tipo === 'falta_justificada') {
+                        // DISTRIBUCION DE INCIDENCIAS
+                        if (tipo === 'falta_injustificada') {
                             reporteData[empID].faltas += diasIncidencia; 
                         } else if (tipo === 'retardo_injustificado') {
                             reporteData[empID].tiempoRetardos += minsAfectados; 
@@ -2122,7 +2122,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnPaginaAnterior = document.getElementById('btnPaginaAnterior');
     const btnPaginaSiguiente = document.getElementById('btnPaginaSiguiente');
     const textoPaginacion = document.getElementById('textoPaginacion');
-    
+
+    // Lógica de Pestañas
+    let filtroEstatusIncidencias = 'pendiente_de_revision'; // Por defecto muestra las pendientes
+    const btnTabPendientes = document.getElementById('btnTabPendientes');
+    const btnTabAtendidas = document.getElementById('btnTabAtendidas');
+
+    if (btnTabPendientes && btnTabAtendidas) {
+        btnTabPendientes.addEventListener('click', () => {
+            filtroEstatusIncidencias = 'pendiente_de_revision';
+            btnTabPendientes.style.borderBottom = '3px solid var(--color-primary)';
+            btnTabPendientes.style.color = 'var(--color-primary)';
+            btnTabAtendidas.style.borderBottom = 'none';
+            btnTabAtendidas.style.color = 'var(--color-text-light)';
+            cargarIncidencias(); // Recargar la tabla
+        });
+
+        btnTabAtendidas.addEventListener('click', () => {
+            filtroEstatusIncidencias = 'atendidas'; // Cualquier cosa que no sea pendiente
+            btnTabAtendidas.style.borderBottom = '3px solid var(--color-primary)';
+            btnTabAtendidas.style.color = 'var(--color-primary)';
+            btnTabPendientes.style.borderBottom = 'none';
+            btnTabPendientes.style.color = 'var(--color-text-light)';
+            cargarIncidencias(); // Recargar la tabla
+        });
+    }
+
     // Funcion que escucha los cambios en la coleccion 'incidencias' de firestore en tiempo real
     // cuando los datos cambian, se actualiza el arreglo 'todasLasIncidencias' y se renderiza la pagina actual.
     window.cargarIncidencias = function() {
@@ -2134,6 +2159,11 @@ document.addEventListener('DOMContentLoaded', () => {
             todasLasIncidencias = []; 
             // recorrer los documentos obtenidos y agregarlos al arreglo
             consulta.forEach((doc) => {
+                const inc = doc.data();
+                
+                // Filtro de pestañas
+                if (filtroEstatusIncidencias === 'pendiente_de_revision' && inc.estatus !== 'pendiente_de_revision') return;
+                if (filtroEstatusIncidencias === 'atendidas' && inc.estatus === 'pendiente_de_revision') return;
                 // guardamos el id del documento junto con sus datos en un nuevo objeto por documento
                 todasLasIncidencias.push({ id: doc.id, ...doc.data() });
             });
