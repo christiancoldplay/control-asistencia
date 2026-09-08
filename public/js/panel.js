@@ -1246,6 +1246,51 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // --- FUNCIÓN AUXILIAR: Generar Falta Automática ---
+    window.registrarFaltaAutomatica = async function (emp, horarioHoy, fecha) {
+        // 1. Crear un ID único y determinista: "falta_1001_2026-09-03"
+        const year = fecha.getFullYear();
+        const month = String(fecha.getMonth() + 1).padStart(2, '0');
+        const day = String(fecha.getDate()).padStart(2, '0');
+        const fechaStr = `${year}-${month}-${day}`;
+        
+        const idIncidencia = `falta_${emp.id}_${fechaStr}`;
+
+        try {
+            // 2. Verificar si ya existe (Para no duplicar ni sobreescribir)
+            const doc = await db.collection('incidencias').doc(idIncidencia).get();
+            if (doc.exists) return; 
+
+            // 3. Calcular las horas afectadas (en minutos) según su horario base
+            const [entHora, entMin] = horarioHoy.entrada.split(':').map(Number);
+            const [salHora, salMin] = horarioHoy.salida.split(':').map(Number);
+            let minutosAfectados = ((salHora * 60) + salMin) - ((entHora * 60) + entMin);
+            
+            if (!horarioHoy.omitirDescanso) {
+                minutosAfectados -= (horarioHoy.duracionDescansoMinutos || 0);
+            }
+
+            // 4. Guardar en Firestore
+            await db.collection('incidencias').doc(idIncidencia).set({
+                empleadoID: emp.id,
+                empleadoNombre: emp.nombre,
+                tipoIncidencia: 'falta_injustificada',
+                fechaInicio: firebase.firestore.Timestamp.fromDate(new Date(`${fechaStr}T00:00:00`)),
+                horasAfectadas: minutosAfectados,
+                autorizantes: 'Sistema Automático',
+                motivo: null,
+                estatus: 'pendiente_de_revision',
+                saldoPendiente: null,
+                fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
+                registradoPor: 'sistema@linguatec.com'
+            });
+            
+            console.log(`Falta automática registrada para ${emp.nombre}`);
+        } catch (error) {
+            console.error("Error al registrar falta automática:", error);
+        }
+    }
+
     // ============================================
     // 15. MÓDULO DE REPORTES Y CONSULTAS
     // ============================================
@@ -1260,56 +1305,93 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Escuchador del formulario ---
     if (formFiltrosReporte) {
         formFiltrosReporte.addEventListener('submit', async (e) => {
-            e.preventDefault(); // Evita recarga de la pagina 
-            // --- Referencias al DOM (Variables locales al evento)
+            e.preventDefault();
+            
             const btnSubmit = formFiltrosReporte.querySelector('button[type="submit"]');
             const fechaInicioStr = document.getElementById('filtroFechaInicio').value;
             const fechaFinStr = document.getElementById('filtroFechaFin').value;
             const deptoSeleccionado = document.getElementById('filtroDepartamento').value;
 
-            // 1. Validación de Fechas
-            // -- Preparar fechas para Firestore ---
-            // --- Convertir fechas de texto(string) a objetos Date de Firestore
-            // --- Concatenamos la hora para abarcar el día completo y evitar problemas de zona horaria.
-            const fechaInicio = new Date(fechaInicioStr + "T00:00:00");// JS lo interpreta como la hora de inicio del dia
-            const fechaFin = new Date(fechaFinStr + "T23:59:59");// JS lo interpreta como el ultimo segundo del dia (fin del dia)
-            
+            const fechaInicio = new Date(fechaInicioStr + "T00:00:00");
+            const fechaFin = new Date(fechaFinStr + "T23:59:59");
+            const hoy = new Date(); 
+
             if (fechaInicio > fechaFin) {
                 alert("La Fecha de Inicio no puede ser mayor a la Fecha de Fin.");
                 return;
             }
 
-            // Deshabilitamos el boton y cambiamos su texto para indicar que el proceso esta en ejecucion y evitar doble clic.
             btnSubmit.disabled = true;
-            btnSubmit.textContent = "Calculando...";
-            tablaReportesBody.innerHTML = '<tr><td colspan="9" class="table-empty-state">Analizando base de datos...</td></tr>';
+            btnSubmit.textContent = "Auditando y Calculando...";
+            tablaReportesBody.innerHTML = '<tr><td colspan="9" class="table-empty-state">Auditando asistencias e incidencias...</td></tr>';
             contenedorResultadosReporte.classList.remove('hidden');
 
-            try {             
-                // --- 2. Consultar empleados --- 
-                // consultamos empleados con estatus activo
+            try {
+                // 1. Consultar Empleados
                 let consultaEmpleados = db.collection('empleados').where('estatus', '==', 'activo');
-                // si el usuario selecciono un departamento especifico, se filtra por el seleccionado
                 if (deptoSeleccionado !== 'todos') {
                     consultaEmpleados = consultaEmpleados.where('departamento', '==', deptoSeleccionado);
                 }
-                // ejecutamos la consulta en Firestore
                 const snapshotEmpleados = await consultaEmpleados.get();
-                // si no hay empleados activos, se muestra mensaje y sale de la funcion
+                
                 if (snapshotEmpleados.empty) {
-                    tablaReportesBody.innerHTML = '<tr><td colspan="9" class="table-empty-state">No se encontraron empleados activos para estos filtros.</td></tr>';
+                    tablaReportesBody.innerHTML = '<tr><td colspan="9" class="table-empty-state">No se encontraron empleados activos.</td></tr>';
                     return;
                 }
 
-                // --- 3. Crear el "Diccionario" en memoria y Calcular Minutos Base ---
-                // usamos el objeto 'reporteData' para agrupar los datos de cada empleado en objetos (uno por cada empleado).
-                // Estructura: { empleadoID { nombre:valor, departamento:valor, retardos:valor,...}}
+                // 2. Consultar Escaneos
+                const snapshotAsistencias = await db.collection('registrosAsistencia')
+                    .where('fechaHora', '>=', firebase.firestore.Timestamp.fromDate(fechaInicio))
+                    .where('fechaHora', '<=', firebase.firestore.Timestamp.fromDate(fechaFin))
+                    .get();
+
+                const asistenciasMap = {};
+                snapshotAsistencias.forEach(doc => {
+                    const reg = doc.data();
+                    const fechaObj = reg.fechaHora.toDate();
+                    const fechaStr = `${fechaObj.getFullYear()}-${String(fechaObj.getMonth()+1).padStart(2,'0')}-${String(fechaObj.getDate()).padStart(2,'0')}`;
+                    if (!asistenciasMap[reg.empleadoID]) asistenciasMap[reg.empleadoID] = new Set();
+                    asistenciasMap[reg.empleadoID].add(fechaStr);
+                });
+
+                // 3. Consultar Incidencias existentes
+                const snapshotIncidencias = await db.collection('incidencias')
+                    .where('fechaInicio', '>=', firebase.firestore.Timestamp.fromDate(fechaInicio))
+                    .where('fechaInicio', '<=', firebase.firestore.Timestamp.fromDate(fechaFin))
+                    .get();
+
+                const incidenciasMap = {};
+                const incidenciasArray = [];
+                
+                snapshotIncidencias.forEach(doc => {
+                    const inc = doc.data();
+                    incidenciasArray.push(inc);
+                    
+                    if (!incidenciasMap[inc.empleadoID]) incidenciasMap[inc.empleadoID] = new Set();
+                    
+                    // ¡SOLUCIÓN BUG 2! Registrar TODOS los días que abarca la incidencia
+                    const start = inc.fechaInicio.toDate();
+                    const end = inc.fechaFin ? inc.fechaFin.toDate() : start;
+                    
+                    const startD = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+                    const endD = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+                    
+                    for (let d = new Date(startD); d <= endD; d.setDate(d.getDate() + 1)) {
+                        const fechaStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                        incidenciasMap[inc.empleadoID].add(fechaStr);
+                    }
+                });
+
+                // 4. Procesar Empleados y Auditoría Día por Día
                 const reporteData = {};
                 const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 
                 snapshotEmpleados.forEach(doc => {
                     const emp = doc.data();
-                    reporteData[doc.id] = {
+                    emp.id = doc.id;
+                    const fechaIngresoEmp = new Date(emp.fechaIngreso + "T00:00:00");
+
+                    reporteData[emp.id] = {
                         nombre: emp.nombre,
                         departamento: emp.departamento,
                         faltas: 0,
@@ -1320,79 +1402,74 @@ document.addEventListener('DOMContentLoaded', () => {
                         minutosLaborados: 0 
                     };
 
-                    // Calculamos los minutos base iterando dia por dia en el rango de fechas
                     for (let d = new Date(fechaInicio); d <= fechaFin; d.setDate(d.getDate() + 1)) {
+                        if (d < fechaIngresoEmp) continue; 
+
                         const diaStr = diasSemana[d.getDay()];
-                        
                         if (emp.horario && emp.horario[diaStr]) {
                             const h = emp.horario[diaStr];
                             if (h.entrada && h.salida) {
                                 const [entHora, entMin] = h.entrada.split(':').map(Number);
                                 const [salHora, salMin] = h.salida.split(':').map(Number);
-
                                 let minDia = ((salHora * 60) + salMin) - ((entHora * 60) + entMin);
                                 
-                                // Restamos el descanso si no está marcado como omitido
                                 if (!h.omitirDescanso) {
                                     minDia -= (h.duracionDescansoMinutos || 0);
-                                }                                
-                                reporteData[doc.id].minutosLaborados += minDia;
+                                }
+                                reporteData[emp.id].minutosLaborados += minDia;
+
+                                const dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                                const horaSalidaDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), salHora, salMin, 0);
+                                
+                                if (hoy > horaSalidaDate) {
+                                    const tieneAsistencia = asistenciasMap[emp.id] && asistenciasMap[emp.id].has(dStr);
+                                    const tieneIncidencia = incidenciasMap[emp.id] && incidenciasMap[emp.id].has(dStr);
+
+                                    if (!tieneAsistencia && !tieneIncidencia) {
+                                        window.registrarFaltaAutomatica(emp, h, new Date(d));
+                                        
+                                        reporteData[emp.id].faltas += 1;
+                                        reporteData[emp.id].tiempoAfectadoTotal += minDia;
+                                        reporteData[emp.id].minutosLaborados -= minDia;
+                                    }
+                                }
                             }
                         }
                     }
                 });
 
-                // --- 4. Consultar incidencias de documentos en Firestore en el rango de fechas seleccionado por el usuario ---
-                const snapshotIncidencias = await db.collection('incidencias')
-                    .where('fechaInicio', '>=', firebase.firestore.Timestamp.fromDate(fechaInicio))
-                    .where('fechaInicio', '<=', firebase.firestore.Timestamp.fromDate(fechaFin))
-                    .get();
-
-                // --- 5. Cruzar los datos (Sumar incidencias a cada empleado segun corresponda)
-                // se recorre cada incidencia, y si el empleado (empID) esta en el diccionario(reporteData), se suma +1 al tipo de incidencia que corresponda
-                snapshotIncidencias.forEach(doc => {
-                    const incidencia = doc.data();
-                    const empID = incidencia.empleadoID;
-                    
-                    // Solo sumamos si el empleado (empID) está en el diccionario reporteData
+                // 5. Procesar Incidencias Existentes
+                incidenciasArray.forEach(inc => {
+                    const empID = inc.empleadoID;
                     if (reporteData[empID]) {
-                        const tipo = incidencia.tipoIncidencia;
-                        const minsAfectados = incidencia.horasAfectadas || 0;
-
-                        //1. CALCULO DIAS MULTIPLES
+                        const tipo = inc.tipoIncidencia;
+                        const minsAfectados = inc.horasAfectadas || 0;
+                        
                         let diasIncidencia = 1;
-                        if (incidencia.fechaFin) {
-                            const start = incidencia.fechaInicio.toDate();
-                            const end = incidencia.fechaFin.toDate();
-                            // Normalizamos a medianoche para contar días exactos
+                        if (inc.fechaFin) {
+                            const start = inc.fechaInicio.toDate();
+                            const end = inc.fechaFin.toDate();
                             const startD = new Date(start.getFullYear(), start.getMonth(), start.getDate());
                             const endD = new Date(end.getFullYear(), end.getMonth(), end.getDate());
                             diasIncidencia = Math.floor((endD - startD) / (1000 * 60 * 60 * 24)) + 1;
                         }
 
-                        // Sumamos al total de horas afectadas
-                        reporteData[empID].tiempoAfectadoTotal += minsAfectados;
-
-                        // 2. DISTRIBUCION DE INCIDENCIAS
                         if (tipo === 'falta_injustificada' || tipo === 'falta_justificada') {
-                            reporteData[empID].faltas += diasIncidencia;
-                            // solo sumamos los retardos injustificados a los mins Afectados
+                            reporteData[empID].faltas += diasIncidencia; 
                         } else if (tipo === 'retardo_injustificado') {
-                            reporteData[empID].tiempoRetardos += minsAfectados;
+                            reporteData[empID].tiempoRetardos += minsAfectados; 
                         } else if (tipo === 'vacaciones') {
                             reporteData[empID].vacaciones += diasIncidencia;
                         } else if (tipo === 'permiso_con_goce' || tipo === 'permiso_sin_goce') {
                             reporteData[empID].permisos += diasIncidencia;
                         }
 
-                        // 3. MATEMATICAS DE HORAS LABORADAS
-                        // - tipos de incidencias (suma o restan minutos laborados)
                         const tiposResta = ['falta_injustificada', 'retardo_injustificado', 'permiso_sin_goce', 'salida_anticipada'];
                         const tiposSuma = ['hora_extra', 'recuperacion_horas', 'compensacion_hora_extra'];
-                        // Nota: Las incidencias tipos: falta_justificada, 'vacaciones' y 'permiso_con_goce' fueron omitidas intencionalmente
-                        // ya que son incidencias neutras que no deben sumar o restar, solo justifican las horas base del empleado.
-
+                        
+                        // ¡SOLUCIÓN BUG 1! Matemática limpia sin doble conteo
                         if (tiposResta.includes(tipo)) {
+                            reporteData[empID].tiempoAfectadoTotal += minsAfectados; 
                             reporteData[empID].minutosLaborados -= minsAfectados;
                         } else if (tiposSuma.includes(tipo)) {
                             reporteData[empID].minutosLaborados += minsAfectados;
@@ -1400,59 +1477,45 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
-                // --- 6. Desarrollo de la tabla del reporte ---
+                // 6. Dibujar la tabla
                 tablaReportesBody.innerHTML = '';
-                
-                // Convertir el diccionario a un Array para poder ordenarlo alfabéticamente                
                 const empleadosArray = Object.entries(reporteData).map(([id, datos]) => ({ id, ...datos }));
                 empleadosArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
-                // por cada empleado creamos una fila
                 empleadosArray.forEach(emp => {
                     const tr = document.createElement('tr');
-                    
-                    // Resalta toda la fila si el empleado tiene 3 o mas faltas
                     if (emp.faltas >= 3) tr.classList.add('alerta-faltas');
 
-                    // Formatear minutos a horas, minutos (HH:MM)
                     const absMinutos = Math.abs(emp.minutosLaborados);
                     const horas = Math.floor(absMinutos / 60);
                     const minutos = absMinutos % 60;
                     const signo = emp.minutosLaborados < 0 ? "-" : "";
                     const horasFormateadas = `${signo}${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')} hrs`;
 
-                    // Dibujar la tabla con los resultados del reporte
-                    // - se genera una fila (<tr>) por cada empleado y se agrega al cuerpo de la tabla (<tbody>)
-                    // - cada fila contiene: nombre, departamento, contadores de incidencias y un boton para ver detalles.
                     tr.innerHTML = `
                         <td><strong>${emp.nombre}</strong></td>
                         <td>${emp.departamento}</td>
-                        <td class="${emp.faltas >= 3 ? 'alerta-texto' : ''}">${emp.faltas}</td> 
+                        <td class="${emp.faltas >= 3 ? 'alerta-texto' : ''}">${emp.faltas}</td>
                         <td>${formatearMinutos(emp.tiempoRetardos)}</td>
                         <td>${emp.vacaciones}</td>
                         <td>${emp.permisos}</td>
                         <td>${formatearMinutos(emp.tiempoAfectadoTotal)}</td>
-                        <td><strong>${horasFormateadas}</strong></td> 
+                        <td><strong>${horasFormateadas}</strong></td>
                         <td>
                             <button class="btn-icon" onclick="verDetallesReporte('${emp.id}')" title="Ver Detalle">
                                 <img src="recursos/icono-ver.svg" alt="Detalles">
                             </button>
                         </td>
                     `;
-                    // agrega la fila al final del <tbody>
                     tablaReportesBody.appendChild(tr);
                 });
 
-                // Actualizar el título de la tarjeta agregando el rango de fechas filtrado
                 tituloResultadosPeriodo.textContent = `Resultados: ${fechaInicioStr} al ${fechaFinStr}`;
 
             } catch (error) {
-                // --- Manejo de errores ---
                 console.error("Error al generar reporte:", error);
                 alert("Ocurrió un error al calcular los datos.");
-                tablaReportesBody.innerHTML = '<tr><td colspan="9" class="table-empty-state estatus-inactivo">Error al generar el reporte.</td></tr>';
             } finally {
-                // Restaurar el botón
                 btnSubmit.disabled = false;
                 btnSubmit.textContent = "Generar Reporte";
             }
@@ -1533,6 +1596,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 //variable para el total del modal
                 let totalMinutosAfectadosModal = 0;
 
+                // Definimos qué tipos realmente afectan el tiempo para el resumen del modal
+                const tiposRestaModal = ['falta_injustificada', 'retardo_injustificado', 'permiso_sin_goce', 'salida_anticipada'];
+
                 // recorremos cada incidencia encontrada en la consulta    
                 snapshotIncidencias.forEach(doc => {
                     //extraemos los datos de la incidencia
@@ -1546,7 +1612,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     // agregamos la incidencia al array de su tipo correspondiente
                     incidenciasAgrupadas[tipo].push(inc);
 
-                    totalMinutosAfectadosModal += (inc.horasAfectadas || 0);
+                    // solo sumamos al total del modal si es una incidencia negativa
+                    if (tiposRestaModal.includes(tipo)) {
+                        totalMinutosAfectadosModal += (inc.horasAfectadas || 0);    
+                    }                    
                 });
                 
                 // --- 7. Generar el HTML agrupado para mostrar ---                
@@ -2133,7 +2202,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <strong>${nombreEmp}</strong>
                     <span class="texto-secundario">${idEmp}</span>
                 </td>
-                <td style="font-size: 12px;">${tipoTexto}</td>
+                <td style="font-size: 14px;">${tipoTexto}</td>
                 <td>${formatearMinutos(inc.horasAfectadas)}</td>
                 <td><span class="estatus-${inc.estatus}">${estatusTexto}</span></td>
                 <td>
@@ -2383,52 +2452,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fechaMonitorHoy = document.getElementById('fechaMonitorHoy');
     const inputFechaMonitor = document.getElementById('inputFechaMonitor');
     
-    let monitorSnapshotUnsubscribe = null; // Variable para apagar el escuchador de Firebase
-
-    // --- FUNCIÓN AUXILIAR: Generar Falta Automática ---
-    async function registrarFaltaAutomatica(emp, horarioHoy, fecha) {
-        // 1. Crear un ID único y determinista: "falta_EA001_2026-09-03"
-        const year = fecha.getFullYear();
-        const month = String(fecha.getMonth() + 1).padStart(2, '0');
-        const day = String(fecha.getDate()).padStart(2, '0');
-        const fechaStr = `${year}-${month}-${day}`;
-        
-        const idIncidencia = `falta_${emp.id}_${fechaStr}`;
-
-        try {
-            // 2. Verificar si ya existe (Para no duplicar ni sobreescribir)
-            const doc = await db.collection('incidencias').doc(idIncidencia).get();
-            if (doc.exists) return; 
-
-            // 3. Calcular las horas afectadas (en minutos) según su horario base
-            const [entHora, entMin] = horarioHoy.entrada.split(':').map(Number);
-            const [salHora, salMin] = horarioHoy.salida.split(':').map(Number);
-            let minutosAfectados = ((salHora * 60) + salMin) - ((entHora * 60) + entMin);
-            
-            if (!horarioHoy.omitirDescanso) {
-                minutosAfectados -= (horarioHoy.duracionDescansoMinutos || 0);
-            }
-
-            // 4. Guardar en Firestore
-            await db.collection('incidencias').doc(idIncidencia).set({
-                empleadoID: emp.id,
-                empleadoNombre: emp.nombre,
-                tipoIncidencia: 'falta_injustificada',
-                fechaInicio: firebase.firestore.Timestamp.fromDate(new Date(`${fechaStr}T00:00:00`)),
-                horasAfectadas: minutosAfectados,
-                autorizantes: 'Sistema Automático',
-                motivo: null,
-                estatus: 'pendiente_de_revision',
-                saldoPendiente: null,
-                fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
-                registradoPor: 'sistema@linguatec.com'
-            });
-            
-            console.log(`Falta automática registrada para ${emp.nombre}`);
-        } catch (error) {
-            console.error("Error al registrar falta automática:", error);
-        }
-    }
+    let monitorSnapshotUnsubscribe = null; // Variable para apagar el escuchador de Firebase    
 
     // --- FUNCIÓN PRINCIPAL: Cargar el Monitor ---
     window.cargarMonitorDiario = async function(fechaSeleccionadaStr = null) {
@@ -2499,6 +2523,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 empleadosArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
                 empleadosArray.forEach(emp => {
+                    // RN: Ignorar si la fecha del monitor es anterior a su contratación
+                    const fechaIngresoEmp = new Date(emp.fechaIngreso + "T00:00:00");
+                    if (fechaMonitor < fechaIngresoEmp) return; 
+
                     const horarioHoy = (emp.horario && emp.horario[diaActualStr]) ? emp.horario[diaActualStr] : null;
                     
                     if (!horarioHoy && emp.escaneos.length === 0) return;
@@ -2553,7 +2581,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (numEscaneos === 0) {
                                 claseEstatus = 'etq-rojo';
                                 textoEstatus = 'FALTA INJUSTIFICADA';                                
-                                registrarFaltaAutomatica(emp, horarioHoy, fechaMonitor);
+                                window.registrarFaltaAutomatica(emp, horarioHoy, fechaMonitor);
                             } else if (numEscaneos === 1 || numEscaneos === 3) {
                                 claseEstatus = 'etq-rojo';
                                 textoEstatus = 'NO REGISTRO SALIDA';
