@@ -330,7 +330,7 @@
                 </div>
             </section>
 
-            <!-- SECCIÓN 3: GESTIÓN DE INCIDENCIAS -->
+            <!-- SECCIÓN: GESTIÓN DE INCIDENCIAS -->
             <section id="seccion-incidencias" class="content-section">
                 <header class="section-header">
                     <h2>Gestión de Incidencias</h2>
@@ -339,17 +339,17 @@
                 <!-- SUB-VISTA A: LISTADO DE INCIDENCIAS -->
                 <div id="vistaListaIncidencias" class="card-container">
                     <div class="card-header-flex">
-                        <h3>Registro de incidencias</h3>
+                        <h3>Registro Histórico</h3>
                         <div class="header-acciones">
                             <input type="text" id="buscadorIncidencias" class="buscador-input" placeholder="Buscar incidencia...">
                             <button id="btnMostrarFormIncidencia" class="btn-primary btn-auto">Registrar Incidencia</button>
                         </div>
                     </div>
-
+                    
                     <!-- Pestañas de Pendientes y Atendidas -->
                     <div class="tabs-incidencias" style="margin-bottom: 15px; border-bottom: 1px solid var(--color-border); padding-bottom: 10px;">
                         <button id="btnTabPendientes" class="btn-secundario btn-auto active" style="border-bottom: 3px solid var(--color-primary); border-radius: 0; background: none; border-top: none; border-left: none; border-right: none;">Pendientes de Revisión</button>
-                        <button id="btnTabAtendidas" class="btn-secundario btn-auto" style="border: none; background: none; color: var(--color-text-light);">Atendidas</button>
+                        <button id="btnTabAtendidas" class="btn-secundario btn-auto" style="border: none; background: none; color: var(--color-text-light);">Atendidas / Historial</button>
                     </div>
                     
                     <div class="table-responsive">
@@ -384,12 +384,14 @@
                 <div id="vistaFormularioIncidencia" class="card-container hidden">
                     <div class="card-header-flex">
                         <h3 id="tituloFormIncidencia">Registrar Nueva Incidencia</h3>
-                        <button id="btnVolverListaIncidencias" class="btn-logout btn-auto m-0">Volver a la lista</button>
+                        <button id="btnVolverListaIncidencias" class="btn-logout btn-auto m-0">⬅ Volver a la lista</button>
                     </div>
                     
                     <form id="formRegistroIncidencia" class="admin-form">
+                        
+                        <!-- BLOQUE 1: CLASIFICACIÓN Y PAGO DE DEUDAS -->
                         <fieldset>
-                            <legend>Datos de la Incidencia</legend>
+                            <legend>Clasificación de Incidencia</legend>
                             <div class="form-grid">
                                 <div class="form-group">
                                     <label for="incEmpleado">Seleccionar Empleado *</label>
@@ -397,25 +399,44 @@
                                         <option value="">Cargando empleados...</option>
                                     </select>
                                 </div>
+
                                 <div class="form-group">
                                     <label for="incTipo">Tipo de Incidencia *</label>
                                     <select id="incTipo" required>
                                         <option value="">Seleccione...</option>
-                                        <option value="falta_injustificada">Falta Injustificada</option>
-                                        <option value="falta_justificada">Falta Justificada</option>
-                                        <option value="retardo_injustificado">Retardo Injustificado</option>
-                                        <option value="retardo_justificado">Retardo Justificado</option>
+                                        <option value="vacaciones">Vacaciones</option>
                                         <option value="permiso_con_goce">Permiso con Goce de Sueldo</option>
                                         <option value="permiso_sin_goce">Permiso sin Goce de Sueldo</option>
-                                        <option value="vacaciones">Vacaciones</option>
+                                        <option value="falta_justificada">Falta Justificada</option>
+                                        <option value="falta_injustificada">Falta Injustificada</option>
+                                        <option value="retardo_justificado">Retardo Justificado</option>
+                                        <option value="retardo_injustificado">Retardo Injustificado</option>
+                                        <option value="suspension">Suspensión</option>
+                                        <option value="recuperacion_horas">Recuperación de Horas</option>
+                                        <option value="salida_anticipada">Salida Anticipada</option>
                                         <option value="incapacidad">Incapacidad Médica</option>
-                                        <option value="recuperacion_horas">Recuperacion de Horas</option>
                                         <option value="hora_extra">Hora Extra</option>
-                                        <option value="compensacion_hora_extra">Compensacion Hora Extra</option>
-                                        <option value="salida_anticipada">Salida anticipada</option>
-                                        <option value="suspension">Suspension</option>
+                                        <option value="compensacion_hora_extra">Compensación Hora Extra</option>
                                     </select>
                                 </div>
+                            </div>
+
+                            <!-- CAJA PARA SALDO Y DEUDA (Se muestra al pagar) -->
+                            <div id="cajaBancoHoras" class="caja-banco-horas hidden">
+                                <p class="texto-instruccion-banco" id="infoSaldoEmpleado"></p>
+                                <div class="form-group" style="margin-top: 15px;">
+                                    <label for="incIncidenciaVinculada">Selecciona la Deuda a Compensar *</label>
+                                    <select id="incIncidenciaVinculada">
+                                        <option value="">Cargando deudas pendientes...</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <!-- BLOQUE 2: DATOS DE LA INCIDENCIA -->
+                        <fieldset>
+                            <legend>Datos de la Incidencia</legend>
+                            <div class="form-grid">
                                 <div class="form-group">
                                     <label for="incFechaInicio">Fecha de Inicio *</label>
                                     <input type="date" id="incFechaInicio" required>
@@ -439,14 +460,15 @@
                                 <label for="incMotivo">Motivo / Descripción *</label>
                                 <textarea id="incMotivo" rows="3" required></textarea>
                             </div>
-                            <!-- Caja del banco de horas -->
+                            
+                            <!-- CAJA DEL BANCO DE HORAS (Autorizar Recuperación) -->
                             <div id="cajaRecuperacionHoras" class="caja-banco-horas hidden">
                                 <label class="label-checkbox-banco">
                                     <input type="checkbox" id="incAutorizarRecuperacion" class="checkbox-banco">
-                                    <span id="textoCheckboxRecuperacion">Autorizar recuperación de este tiempo.*</span>
+                                    <span id="textoCheckboxRecuperacion">Autorizar recuperación de este tiempo.</span>
                                 </label>
                                 <p class="texto-instruccion-banco">
-                                    * Autorizacion para que el empleado pueda pagar las horas de esta incidencia.
+                                    Al autorizar, el estatus cambiará a "Pendiente de Compensar" y las horas se sumarán al saldo deudor del empleado.
                                 </p>
                             </div>
                         </fieldset>
@@ -457,7 +479,7 @@
                         </div>
                     </form>
                 </div>
-            </section>
+            </section> 
 
             <!-- SECCIÓN 4: REPORTES Y CONSULTAS -->
             <section id="seccion-reportes" class="content-section">

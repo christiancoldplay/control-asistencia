@@ -1887,14 +1887,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ============================================
+   // ============================================
     // 17. GESTIÓN DE INCIDENCIAS
     // ============================================
-    // Objetivo: Permitir al administrador (director adm.) registrar, ver y gestionar las incidencias de los empleados
-    // Funcionalidades:
-    // - Registrar nuevas incidencias 
-    // - Visualizar lista de incidencias en tiempo real (ordenadas por fecha).
-    // - Filtro de busqueda en tiempo real sobre la tabla.
+    // Objetivo: Permitir al administrador registrar, ver y gestionar las incidencias.
+    // Incluye lógica avanzada de Banco de Horas (Deudas y Créditos de tiempo).
 
     // --- FUNCIÓN AUXILIAR: Formatear minutos a Horas y Minutos ---
     function formatearMinutos(totalMinutos) {
@@ -1918,7 +1915,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnVolverListaIncidencias = document.getElementById('btnVolverListaIncidencias');
     const formRegistroIncidencia = document.getElementById('formRegistroIncidencia');
     const selectIncEmpleado = document.getElementById('incEmpleado');
+    const selectTipoIncidencia = document.getElementById('incTipo');
     const tablaIncidenciasBody = document.getElementById('tablaIncidenciasBody');
+
+    // Referencias para el Banco de Horas (Pagos y Deudas)
+    const cajaBancoHoras = document.getElementById('cajaBancoHoras');
+    const infoSaldoEmpleado = document.getElementById('infoSaldoEmpleado');
+    const selectIncidenciaVinculada = document.getElementById('incIncidenciaVinculada');
 
     // Variable de estado para saber si creamos o editamos
     let incidenciaEditandoID = null;
@@ -1929,63 +1932,51 @@ document.addEventListener('DOMContentLoaded', () => {
         incidenciaEditandoID = null;
         document.getElementById('tituloFormIncidencia').textContent = "Registrar Nueva Incidencia";
         formRegistroIncidencia.querySelector('button[type="submit"]').textContent = "Guardar Incidencia";
+        
+        // Ocultar cajas condicionales
+        if (cajaBancoHoras) cajaBancoHoras.classList.add('hidden');
+        if (cajaRecuperacionHoras) cajaRecuperacionHoras.classList.add('hidden');
     }
 
     // -- A. Sub-navegación: Mostrar formulario y Cargar Empleados. --
-    // Controla la visibilidad entre la lista de incidencias y el formulario de registro de incidencias.
-
-    // verificacion de que ambos elementos existen en el DOM
     if (btnMostrarFormIncidencia && btnVolverListaIncidencias) {        
-        // al hacer click en "Nueva incidencia..."
         btnMostrarFormIncidencia.addEventListener('click', async () => {
-            //limpiar el fomrulario de incidencias
             limpiarFormularioIncidencia();
-            // 1. Ocultar la lista y mostrar el formulario
             vistaListaIncidencias.classList.add('hidden');
             vistaFormularioIncidencia.classList.remove('hidden');
             
-            // Cargar empleados activos en el <select>
-            // esto permite asocial la incidencia a un empleado.
             try {
-                //consultamos solo empleados con estatus 'activo', ordenados por nombre
                 const snapshot = await db.collection('empleados').where('estatus', '==', 'activo').orderBy('nombre', 'asc').get();
-                // limpiamos el <select> y agregamos la opcion por defecto
                 selectIncEmpleado.innerHTML = '<option value="">Seleccione un empleado...</option>';
-                // recorremos cada empleado y lo agregamos al select
                 snapshot.forEach(doc => {
                     const emp = doc.data();
-                    // Guardamos el nombre en un atributo 'data-nombre' para usarlo al mostrar la incidencia en la tabla (evita hacer otra consulta a la base de datos)
                     selectIncEmpleado.innerHTML += `<option value="${doc.id}" data-nombre="${emp.nombre}">${emp.nombre} (${emp.codigo})</option>`;
                 });
             } catch (error) {
                 console.error("Error al cargar empleados para incidencias:", error);
             }
         });
-        // Al hacer click en "cancelar" o "volver"
+
         btnVolverListaIncidencias.addEventListener('click', () => {
-            // ocultamos el formulario y mostramos la lista
             vistaFormularioIncidencia.classList.add('hidden');
             vistaListaIncidencias.classList.remove('hidden');
-            // limpiamos el formulario de incidencias
             limpiarFormularioIncidencia();
         });
         
-        // Botón "Cancelar" dentro del formulario 
         document.getElementById('btnCancelarIncidencia').addEventListener('click', () => {
             btnVolverListaIncidencias.click();
         });
     }
 
-    // Variables de estado para el Banco de Horas
+    // -- B. Lógica Visual del Banco de Horas (Generar Deuda) --
     let estatusIncidenciaOriginal = null;
     const cajaRecuperacionHoras = document.getElementById('cajaRecuperacionHoras');
     const incAutorizarRecuperacion = document.getElementById('incAutorizarRecuperacion');
     const textoCheckboxRecuperacion = document.getElementById('textoCheckboxRecuperacion');
 
-    // Función auxiliar para cambiar el texto del checkbox dinámicamente
     function actualizarTextoCheckboxBanco() {
         if (incAutorizarRecuperacion.checked) {
-            textoCheckboxRecuperacion.textContent = "Desmarque la casilla si desea desaprobar la recuperacion de horas de la incidencia)";
+            textoCheckboxRecuperacion.textContent = "Desmarque la casilla si desea desaprobar la recuperación de horas.";
             textoCheckboxRecuperacion.style.color = "#9b2c2c"; 
         } else {
             textoCheckboxRecuperacion.textContent = "Autorizar recuperación de este tiempo.";
@@ -1993,69 +1984,105 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Escuchar cuando la Directora le da clic al checkbox
     if (incAutorizarRecuperacion) {
         incAutorizarRecuperacion.addEventListener('change', actualizarTextoCheckboxBanco);
     }
 
-    // B. Guardar o Actualizar Incidencia en Firestore
-    // Cuando el usuario envia el formulario, se crea un nuevo documento
-    // en la coleccion 'incidencias' de Firestore.
+    // -- C. Lógica Visual del Banco de Horas (Pagar Deuda) --
+    // Esta función consulta el saldo del empleado y sus deudas pendientes
+    async function cargarDeudasYSaldo() {
+        const empleadoID = selectIncEmpleado.value;
+        const tipo = selectTipoIncidencia.value;
+
+        // Solo mostramos la caja si la Directora elige un tipo de "Pago"
+        if ((tipo === 'recuperacion_horas' || tipo === 'compensacion_hora_extra') && empleadoID) {
+            cajaBancoHoras.classList.remove('hidden');
+            selectIncidenciaVinculada.required = true;
+            selectIncidenciaVinculada.innerHTML = '<option value="">Buscando deudas...</option>';
+            infoSaldoEmpleado.textContent = "Consultando saldo del empleado...";
+
+            try {
+                // 1. Consultar el saldo actual del empleado
+                const empDoc = await db.collection('empleados').doc(empleadoID).get();
+                const empData = empDoc.data();
+                const saldoExtra = empData.saldoHorasExtra || 0;
+                const saldoDeudor = empData.saldoPendiente || 0;
+
+                infoSaldoEmpleado.innerHTML = `<strong>Saldo a favor:</strong> ${formatearMinutos(saldoExtra)} | <strong>Saldo deudor total:</strong> ${formatearMinutos(saldoDeudor)}`;
+
+                // 2. Consultar las incidencias que el empleado debe
+                const snapshotDeudas = await db.collection('incidencias')
+                    .where('empleadoID', '==', empleadoID)
+                    .where('estatus', 'in', ['pendiente_de_compensar', 'compensada_parcialmente'])
+                    .get();
+
+                if (snapshotDeudas.empty) {
+                    selectIncidenciaVinculada.innerHTML = '<option value="">El empleado no tiene deudas pendientes.</option>';
+                    selectIncidenciaVinculada.required = false;
+                } else {
+                    selectIncidenciaVinculada.innerHTML = '<option value="">Seleccione la deuda a pagar...</option>';
+                    snapshotDeudas.forEach(doc => {
+                        const deuda = doc.data();
+                        const fechaStr = deuda.fechaInicio.toDate().toLocaleDateString('es-MX');
+                        const tipoLimpio = deuda.tipoIncidencia.replace(/_/g, ' ').toUpperCase();
+                        selectIncidenciaVinculada.innerHTML += `<option value="${doc.id}">Debe ${formatearMinutos(deuda.saldoPendiente)} por ${tipoLimpio} del ${fechaStr}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error("Error al cargar deudas:", error);
+                infoSaldoEmpleado.textContent = "Error al cargar el saldo.";
+            }
+        } else {
+            cajaBancoHoras.classList.add('hidden');
+            selectIncidenciaVinculada.required = false;
+        }
+    }
+
+    // Escuchamos cambios para recargar las deudas
+    if (selectIncEmpleado) selectIncEmpleado.addEventListener('change', cargarDeudasYSaldo);
+    if (selectTipoIncidencia) selectTipoIncidencia.addEventListener('change', cargarDeudasYSaldo);
+
+
+    // -- D. Guardar o Actualizar Incidencia en Firestore --
     if (formRegistroIncidencia) {
         formRegistroIncidencia.addEventListener('submit', async (e) => {
-            e.preventDefault(); // evita recarga de la pagina
-            // Referencias locales al evento
+            e.preventDefault(); 
             const btnSubmit = formRegistroIncidencia.querySelector('button[type="submit"]');
-            // Deshabilitar el boton para evitar doble clic
             btnSubmit.disabled = true;
             btnSubmit.textContent = "Guardando...";
 
             try {
-                // 1. obtener la opcion seleccionada del select
                 const opcionSeleccionada = selectIncEmpleado.options[selectIncEmpleado.selectedIndex];
-                // 
                 const empleadoID = opcionSeleccionada.value;
-                //
-                const tipoIncidencia = document.getElementById('incTipo').value;
-                //
+                const tipoIncidencia = selectTipoIncidencia.value;
                 const horasAfectadas = parseInt(document.getElementById('incHorasAfectadas').value) || 0;                
-                // 2. Construir el objeto de la incidencia
+                
                 const incidenciaData = {
-                    // Datos del empleado
                     empleadoID: empleadoID,
                     empleadoNombre: opcionSeleccionada.getAttribute('data-nombre'),
-
-                    // Datos de la incidencia
                     tipoIncidencia: tipoIncidencia,
-                    // convertimos la fecha de string a timestamp de firestore (inicio del dia)
                     fechaInicio: firebase.firestore.Timestamp.fromDate(new Date(document.getElementById('incFechaInicio').value + "T00:00:00")),
                     horasAfectadas: horasAfectadas,
                     autorizantes: document.getElementById('incAutorizantes').value.trim(),
                     motivo: document.getElementById('incMotivo').value.trim()
-                    // Campos automaticos 
-                    // estatus: 'aprobada',
-                    // fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
-                    // registradoPor: auth.currentUser.email 
                 };
 
-                // 3. Si hay fecha de fin, la agregamos al objeto.
                 const fechaFinVal = document.getElementById('incFechaFin').value;
                 if (fechaFinVal) {
                     incidenciaData.fechaFin = firebase.firestore.Timestamp.fromDate(new Date(fechaFinVal + "T23:59:59"));
                 } else if (incidenciaEditandoID) {
-                    // Solo usamos delete si estamos editando un documento que ya existe
                     incidenciaData.fechaFin = firebase.firestore.FieldValue.delete();
                 }
                 
-                // -- LOGICA DE ESTATUS Y BANCO DE HORAS --
+                // LÓGICA DE ESTATUS Y GENERACIÓN DE DEUDA
                 const tiposJustificados = ['falta_justificada', 'retardo_justificado', 'permiso_con_goce', 'vacaciones', 'incapacidad', 'hora_extra'];
                 let estatusFinal = 'aprobada'; 
 
                 if (incidenciaEditandoID) {
                     if (tiposJustificados.includes(tipoIncidencia)) {
                         estatusFinal = 'aprobada';
-                    } else if (incAutorizarRecuperacion.checked){
-                        estatusFinal = 'pendiente de compensar';
+                    } else if (incAutorizarRecuperacion && incAutorizarRecuperacion.checked){
+                        estatusFinal = 'pendiente_de_compensar';
                         incidenciaData.saldoPendiente = horasAfectadas;
                     } else {
                         estatusFinal = 'revisada';
@@ -2063,11 +2090,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     incidenciaData.estatus = estatusFinal;
-
-                    // MODO EDICION: Actualizamos el documento existente.
                     await db.collection('incidencias').doc(incidenciaEditandoID).update(incidenciaData);
 
-                    // -- Actualizar saldo del empleado --
+                    // Actualizar saldo deudor del empleado si se autorizó o revocó la deuda
                     if (estatusIncidenciaOriginal !== 'pendiente_de_compensar' && estatusFinal === 'pendiente_de_compensar') {
                         await db.collection('empleados').doc(empleadoID).update({
                             saldoPendiente: firebase.firestore.FieldValue.increment(horasAfectadas)
@@ -2077,54 +2102,87 @@ document.addEventListener('DOMContentLoaded', () => {
                             saldoPendiente: firebase.firestore.FieldValue.increment(-horasAfectadas)
                         });
                     }
+                    alert("Incidencia actualizada exitosamente.");
 
-                    alert("Incidencia actualizada y banco de horas ajustado exitosamente.");
                 } else {
-                    // MODO CREACION: Agregamos campos automaticos y creamos documento nuevo
+                    // MODO CREACIÓN
                     incidenciaData.estatus = 'aprobada';
                     incidenciaData.fechaCreacion = firebase.firestore.FieldValue.serverTimestamp();
-                    // proteccion para obtener el correo del administrador
+                    
                     const usuarioActual = firebase.auth().currentUser;
-                    incidenciaData.registradoPor = (usuarioActual && usuarioActual.email) ? usuarioActual.email : document.getElementById('userNameDisplay').textContent;
                     const correoAdmin = (usuarioActual && usuarioActual.email) ? usuarioActual.email : document.getElementById('userNameDisplay').textContent;
                     incidenciaData.registradoPor = correoAdmin;
 
-                    // Guardar en Firestore (Colección 'incidencias')
+                    // LÓGICA DE PAGO DE DEUDA (Si es recuperación de horas)
+                    if (tipoIncidencia === 'recuperacion_horas' || tipoIncidencia === 'compensacion_hora_extra') {
+                        const deudaID = selectIncidenciaVinculada.value;
+                        if (deudaID) {
+                            // 1. Consultar la deuda original
+                            const deudaDoc = await db.collection('incidencias').doc(deudaID).get();
+                            const deudaData = deudaDoc.data();
+                            const deudaActual = deudaData.saldoPendiente || 0;
+                            const pago = horasAfectadas; // La "moneda" que el empleado trabajó
+
+                            // 2. Matemáticas de liquidación
+                            let nuevoSaldoPendienteDeuda = deudaActual - pago;
+                            let nuevoEstatusDeuda = 'pendiente_de_compensar';
+                            let excedenteParaEmpleado = 0;
+                            let reduccionDeudaEmpleado = pago;
+
+                            if (nuevoSaldoPendienteDeuda <= 0) {
+                                nuevoEstatusDeuda = 'compensada_totalmente';
+                                excedenteParaEmpleado = Math.abs(nuevoSaldoPendienteDeuda);
+                                reduccionDeudaEmpleado = deudaActual; // Solo reducimos lo que debía
+                                nuevoSaldoPendienteDeuda = 0;
+                            } else {
+                                nuevoEstatusDeuda = 'compensada_parcialmente';
+                            }
+
+                            // 3. Actualizar la incidencia original (la deuda)
+                            await db.collection('incidencias').doc(deudaID).update({
+                                saldoPendiente: nuevoSaldoPendienteDeuda,
+                                estatus: nuevoEstatusDeuda
+                            });
+
+                            // 4. Actualizar el perfil del empleado (Restar deuda y sumar excedente)
+                            await db.collection('empleados').doc(empleadoID).update({
+                                saldoPendiente: firebase.firestore.FieldValue.increment(-reduccionDeudaEmpleado),
+                                saldoHorasExtra: firebase.firestore.FieldValue.increment(excedenteParaEmpleado)
+                            });
+
+                            // 5. Vincular este pago con la deuda original
+                            incidenciaData.incidenciaQueCompensa = deudaID;
+                        }
+                    }
+
+                    // Guardar la nueva incidencia en Firestore
                     await db.collection('incidencias').add(incidenciaData);
                     alert("Incidencia registrada exitosamente.");
                  }
                                 
-                // Regresa a la lista y limpia el formulario                
                 btnVolverListaIncidencias.click(); 
 
             } catch (error) {
                 console.error("Error al guardar incidencia:", error);
                 alert("Ocurrió un error al guardar la incidencia.");
             } finally {
-                // restaurar el boton
                 btnSubmit.disabled = false;
                 btnSubmit.textContent = incidenciaEditandoID ? "Actualizar Incidencia" : "Guardar Incidencia";
             }
         });
     }
     
-    // C. Cargar y Mostrar Incidencias (Con Paginación)    
-    // Variables globales para la paginación
-
-    // Arreglo que contendra todos los objetos de incidencias obtenidos de firestore
+    // -- E. Cargar y Mostrar Incidencias (Con Paginación y Pestañas) --
     let todasLasIncidencias = [];
-    // Numero que indica en que pagina se encuentra el usuario actualmente
     let paginaActualIncidencias = 1;
-    // Define cuantas incidencias se mostraran por pagina
     const incidenciasPorPagina = 8;
-    // referencia a los elementos del DOM que controlan la paginacion
+    
     const controlesPaginacion = document.getElementById('controlesPaginacionIncidencias');
     const btnPaginaAnterior = document.getElementById('btnPaginaAnterior');
     const btnPaginaSiguiente = document.getElementById('btnPaginaSiguiente');
     const textoPaginacion = document.getElementById('textoPaginacion');
 
-    // Lógica de Pestañas
-    let filtroEstatusIncidencias = 'pendiente_de_revision'; // Por defecto muestra las pendientes
+    let filtroEstatusIncidencias = 'pendiente_de_revision'; 
     const btnTabPendientes = document.getElementById('btnTabPendientes');
     const btnTabAtendidas = document.getElementById('btnTabAtendidas');
 
@@ -2135,48 +2193,37 @@ document.addEventListener('DOMContentLoaded', () => {
             btnTabPendientes.style.color = 'var(--color-primary)';
             btnTabAtendidas.style.borderBottom = 'none';
             btnTabAtendidas.style.color = 'var(--color-text-light)';
-            cargarIncidencias(); // Recargar la tabla
+            cargarIncidencias(); 
         });
 
         btnTabAtendidas.addEventListener('click', () => {
-            filtroEstatusIncidencias = 'atendidas'; // Cualquier cosa que no sea pendiente
+            filtroEstatusIncidencias = 'atendidas'; 
             btnTabAtendidas.style.borderBottom = '3px solid var(--color-primary)';
             btnTabAtendidas.style.color = 'var(--color-primary)';
             btnTabPendientes.style.borderBottom = 'none';
             btnTabPendientes.style.color = 'var(--color-text-light)';
-            cargarIncidencias(); // Recargar la tabla
+            cargarIncidencias(); 
         });
     }
 
-    // Funcion que escucha los cambios en la coleccion 'incidencias' de firestore en tiempo real
-    // cuando los datos cambian, se actualiza el arreglo 'todasLasIncidencias' y se renderiza la pagina actual.
     window.cargarIncidencias = function() {
-        // verifica que el elemento exista en el DOM
         if (!tablaIncidenciasBody) return;
 
-        // Ordenamos por la fecha real del evento, no por cuando se creó en sistema
         db.collection('incidencias').orderBy('fechaInicio', 'desc').onSnapshot((consulta) => {
             todasLasIncidencias = []; 
-            // recorrer los documentos obtenidos y agregarlos al arreglo
+            
             consulta.forEach((doc) => {
                 const inc = doc.data();
-                
-                // Filtro de pestañas
                 if (filtroEstatusIncidencias === 'pendiente_de_revision' && inc.estatus !== 'pendiente_de_revision') return;
                 if (filtroEstatusIncidencias === 'atendidas' && inc.estatus === 'pendiente_de_revision') return;
-                // guardamos el id del documento junto con sus datos en un nuevo objeto por documento
+                
                 todasLasIncidencias.push({ id: doc.id, ...doc.data() });
             });
 
-            // -- control de pagina actual --
-            // - se calcula el numero total de paginas segun la cantidad de incidencias
-            // - si no hay incidencias. 'totalPaginas' es 1
             const totalPaginas = Math.ceil(todasLasIncidencias.length / incidenciasPorPagina) || 1;
-            // se ajusta a la ultima pagina valida, para evitar mostrar una pagina vacia
             if (paginaActualIncidencias > totalPaginas) {
                 paginaActualIncidencias = totalPaginas;
             }
-            // renderizar los datos de la pagina actual en la interfaz
             renderizarPaginaIncidencias();
             
         }, (error) => {
@@ -2184,48 +2231,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     };
 
-    // Función que dibuja solo los 8 elementos que tocan en la página actual
     function renderizarPaginaIncidencias() {
-        // limpia el contenido para evitar duplicados
         tablaIncidenciasBody.innerHTML = ''; 
-        // caso 1: no hay incidencias registradas
-        // se muestra un mensaje en la tabla y se ocultan los controles de paginacion
+        
         if (todasLasIncidencias.length === 0) {
             tablaIncidenciasBody.innerHTML = `<tr><td colspan="6" class="table-empty-state">No hay incidencias registradas.</td></tr>`;
             if (controlesPaginacion) controlesPaginacion.classList.add('hidden');
             return;
         }
-        // -- caso 2: Hay incidencias, mostrar los controles de paginacion --
+        
         if (controlesPaginacion) controlesPaginacion.classList.remove('hidden');
-        // calcular los indices para extrer un subconjutno de datos para la pagina actual
-        // 'indiceInicio': primer elemento de la pagina 
+        
         const indiceInicio = (paginaActualIncidencias - 1) * incidenciasPorPagina;
-        // 'indiceFin': ultimo elemento de la pagina
         const indiceFin = indiceInicio + incidenciasPorPagina;
-        // se obtiene el subconjunto con los indices previamente definidos
         const incidenciasA_Mostrar = todasLasIncidencias.slice(indiceInicio, indiceFin);
         
-        // generar las filas de la tabla para cada incidencia del subconjunto 'incidenciasAMostrar' 
         incidenciasA_Mostrar.forEach((inc) => {
-            // crear una nueva fila de la tabla
             const tr = document.createElement('tr');
-            // -- Formateo de los datos --
+            
             let fechaTexto = "Fecha pendiente";
             if (inc.fechaInicio) {
-                // - 'toDate' convierte el timeStamp de firestore a un objeto Date JS
                 fechaTexto = inc.fechaInicio.toDate().toLocaleDateString('es-MX');
             }
 
-            // Formatear el tipo de incidencia 
             const tipoTexto = inc.tipoIncidencia.replace(/_/g, ' ').toUpperCase();
-            // formatear el estatus
             const estatusTexto = inc.estatus.replace(/_/g, ' ').toUpperCase();
-            // obtener el nombre del empleado
             const nombreEmp = inc.empleadoNombre || 'Empleado Desconocido';
-            // obtener el ID del empleado
             const idEmp = inc.empleadoID || 'Sin ID';
 
-            // contruir el HTML de la fila
             tr.innerHTML = `
                 <td>${fechaTexto}</td>
                 <td>
@@ -2242,134 +2275,96 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="btn-icon" onclick="verDetallesIncidencia('${inc.id}')" title="Ver Detalles">
                         <img src="recursos/icono-ver.svg" alt="Ver">
                     </button>
-                    <button class="btn-icon icon-danger" title="Eliminar (Próximamente)">
-                        <img src="recursos/icono-baja.svg" alt="Eliminar">
-                    </button>
                 </td>
             `;
-            // agregar la fila al tbody de la tabla
             tablaIncidenciasBody.appendChild(tr);
         });
-        // actualizar el estado de los botones de la paginacion
         actualizarBotonesPaginacion();
     }
 
     function actualizarBotonesPaginacion() {
-        // calcular el numero total de paginas
-        // si no hay incidencias el total es 1
         const totalPaginas = Math.ceil(todasLasIncidencias.length / incidenciasPorPagina) || 1;
-        // actualizar el texto de la pagina
         textoPaginacion.textContent = `Página ${paginaActualIncidencias} de ${totalPaginas}`;
-        // deshabilita el boton "Anterior" si estamos en la primera pagina
         btnPaginaAnterior.disabled = paginaActualIncidencias === 1;
-        // deshabilitar el boton "Siguiente" si estamos en la ultima pagina
         btnPaginaSiguiente.disabled = paginaActualIncidencias === totalPaginas;
     }
 
-    // Eventos de los botones de paginación, 
-    // pemiten al usuario navegar entre las paginas haciendo clic en los botones
     if (btnPaginaAnterior && btnPaginaSiguiente) {
-        // evento para el boton "Anterior"
         btnPaginaAnterior.addEventListener('click', () => {
-            // solo navegar si no estamos en la primera pagina
             if (paginaActualIncidencias > 1) {
-                // decrementar la pagina actual
                 paginaActualIncidencias--;
-                // redibujar la tabla con los datos de la nueva pagina
                 renderizarPaginaIncidencias();
             }
         });
-        // evento para el boton "Siguiente"
         btnPaginaSiguiente.addEventListener('click', () => {
-            // calcular el numero total de paginas
             const totalPaginas = Math.ceil(todasLasIncidencias.length / incidenciasPorPagina);
-            // solo navegar si no estamos en la ultima pagina
             if (paginaActualIncidencias < totalPaginas) {
-                // incrementar la pagina actual
                 paginaActualIncidencias++;
-                // redibujar la tabla con los datos de la nueva pagina 
                 renderizarPaginaIncidencias();
             }
         });
     }
 
-     // D. Editar Incidencia (Cargar datos al formulario)
-     // Objetivo: cargar los datos de una incidencia existente en el formulario para que el usuario pueda modificarla y actualizarla en Firestore.     
+    // -- F. Editar Incidencia (Cargar datos al formulario) --
     window.editarIncidencia = async function(id) {
         try {
-            // consultar el documento de la incidencia en firestore usando el id recibido como parametro para obtenerlo.
             const doc = await db.collection('incidencias').doc(id).get();
             if (!doc.exists) return;
-            // extraemos los datos de la incidencia del documento
             const inc = doc.data();
-            // guardamos el id en una variable global, que sera usada en el evento submit del formulario para saber si estamos creando
-            // o editando una incidencia.
+            
             incidenciaEditandoID = id;
             estatusIncidenciaOriginal = inc.estatus;
 
-            // -- 1. Cargar empleados activos en el <select>. -- 
-            // Esto permite que el usuario pueda cambiar el empleado asociado a la incidencia si es necesario. 
             const snapshot = await db.collection('empleados').where('estatus', '==', 'activo').orderBy('nombre', 'asc').get();
-            // limpiamos el <select> y agregamos la opcion por defecto.
             selectIncEmpleado.innerHTML = '<option value="">Seleccione un empleado...</option>';
-            // recorremos cada empleado y lo agregamos como opcion
             snapshot.forEach(empDoc => {
                 const emp = empDoc.data();
-                // guardamos el nombre en el atributo 'data-nombre' para usarlo en la tabla
                 selectIncEmpleado.innerHTML += `<option value="${empDoc.id}" data-nombre="${emp.nombre}">${emp.nombre} (${emp.codigo})</option>`;
             });
 
-            // -- 2. Rellenar los datos del formulario con los datos de la incidencia --
             document.getElementById('incEmpleado').value = inc.empleadoID;
             document.getElementById('incTipo').value = inc.tipoIncidencia;
             document.getElementById('incHorasAfectadas').value = inc.horasAfectadas;
             document.getElementById('incAutorizantes').value = inc.autorizantes || "";
             document.getElementById('incMotivo').value = inc.motivo || "";
 
-            // Formatear fechas de Firestore (Timestamp) a formato (YYYY-MM-DD). Formato requerido por los datos tipo 'date'
             if (inc.fechaInicio) {
-                // convertimos el Timestamp a objeto Date
                 const f = inc.fechaInicio.toDate();
-                // construimos el string en formato YYYY-MM-DD
                 document.getElementById('incFechaInicio').value = `${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,'0')}-${String(f.getDate()).padStart(2,'0')}`;
             }
-            // si tiene fecha de fin, la formateamos igual (YYYY-MM-DD)
             if (inc.fechaFin) {
                 const f = inc.fechaFin.toDate();
                 document.getElementById('incFechaFin').value = `${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,'0')}-${String(f.getDate()).padStart(2,'0')}`;
             } else {
-                // si no tiene fecha de fin (incidencia de un dia), limpiamos el campo
                 document.getElementById('incFechaFin').value = "";
             }
 
-            // -- Logica visual de checkbox de recuperacion de horas --
+            // Lógica visual del checkbox de recuperación
             const tiposNegativos = ['falta_injustificada', 'retardo_injustificado', 'permiso_sin_goce'];
             if (tiposNegativos.includes(inc.tipoIncidencia)) {
-                cajaRecuperacionHoras.classList.remove('hidden');
-                incAutorizarRecuperacion.checked = (inc.estatus === 'pendiente_de_compensar');
-                actualizarTextoCheckboxBanco(); // Actualizamos el texto según el estado inicial
+                if (cajaRecuperacionHoras) cajaRecuperacionHoras.classList.remove('hidden');
+                if (incAutorizarRecuperacion) {
+                    incAutorizarRecuperacion.checked = (inc.estatus === 'pendiente_de_compensar');
+                    actualizarTextoCheckboxBanco(); 
+                }
             } else {
-                cajaRecuperacionHoras.classList.add('hidden');
-                incAutorizarRecuperacion.checked = false;
+                if (cajaRecuperacionHoras) cajaRecuperacionHoras.classList.add('hidden');
+                if (incAutorizarRecuperacion) incAutorizarRecuperacion.checked = false;
             }
 
-            // Escuchar cambios en el select de tipo para ocultar/mostrar el checkbox
             document.getElementById('incTipo').addEventListener('change', (e) => {
                 if (tiposNegativos.includes(e.target.value)) {
-                    cajaRecuperacionHoras.classList.remove('hidden');
+                    if (cajaRecuperacionHoras) cajaRecuperacionHoras.classList.remove('hidden');
                     actualizarTextoCheckboxBanco();
                 } else {
-                    cajaRecuperacionHoras.classList.add('hidden');
-                    incAutorizarRecuperacion.checked = false;
+                    if (cajaRecuperacionHoras) cajaRecuperacionHoras.classList.add('hidden');
+                    if (incAutorizarRecuperacion) incAutorizarRecuperacion.checked = false;
                 }
             });
 
-            // -- 3. Cambiar la interfaz a "modo edición" --
-            // cambiamos el titulo del formulario y el texto del boton de envio
-            document.getElementById('tituloFormIncidencia').textContent = "Editar Incidencia";
+            document.getElementById('tituloFormIncidencia').textContent = "Revisar / Editar Incidencia";
             formRegistroIncidencia.querySelector('button[type="submit"]').textContent = "Actualizar Incidencia";
             
-            // mostrar el formulario y ocultar la lista de incidencias, para que el usuario pueda ver los datos cargados
             vistaListaIncidencias.classList.add('hidden');
             vistaFormularioIncidencia.classList.remove('hidden');
 
@@ -2379,8 +2374,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Buscador en tiempo real para incidencias
-    // reutiliza la funcion global 'configurarBuscador' para filtrar la tabla de incidencias mientra el usuario escribe
     configurarBuscador('buscadorIncidencias', 'tablaIncidenciasBody');
 
     // ============================================
