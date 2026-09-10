@@ -445,20 +445,36 @@
                                     <label for="incFechaFin">Fecha de Fin (Opcional)</label>
                                     <input type="date" id="incFechaFin">
                                 </div>
-                                <div class="form-group">
-                                    <label for="incHorasAfectadas">Horas Afectadas (En minutos) *</label>
-                                    <input type="number" id="incHorasAfectadas" min="0" required>
-                                    <small class="form-instructions">Ej. 1 hora = 60, 1 día = 480</small>
+                                <!-- Input de duracion (horas minutos) -->
+                                <div class="form-group" id="grupoDuracionEstandar">
+                                    <label>Tiempo Afectado / A Compensar *</label>
+                                    <div class="input-tiempo-grupo">
+                                        <input type="number" id="incHoras" min="0" placeholder="0">
+                                        <span class="tiempo-label">hrs</span>
+                                        <input type="number" id="incMinutos" min="0" max="59" placeholder="0">
+                                        <span class="tiempo-label">min</span>
+                                    </div>                              
                                 </div>
+
+                                <!-- INPUTS DE HORA EXACTA (Solo para Recuperación) -->
+                                <div class="form-group hidden" id="grupoHorarioRecuperacion">
+                                    <label>Horario de Recuperación *</label>
+                                    <div class="input-tiempo-grupo">
+                                        <input type="time" id="incHoraInicioRec" title="Hora de inicio">
+                                        <span class="tiempo-label">a</span>
+                                        <input type="time" id="incHoraFinRec" title="Hora de fin">
+                                    </div>
+                                </div>
+
                                 <div class="form-group">
-                                    <label for="incAutorizantes">Autorizado por (Nombre y Cargo)</label>
-                                    <input type="text" id="incAutorizantes" placeholder="Ej. Ana López - Dir. Tutoría">
+                                    <label for="incAutorizantes">Autorizado por (Nombre y Cargo) *</label>
+                                    <input type="text" id="incAutorizantes" required placeholder="Ej. Ana López - Dir. Tutoría">
                                 </div>
                             </div>
                             
                             <div class="form-group observaciones-group">
                                 <label for="incMotivo">Motivo / Descripción *</label>
-                                <textarea id="incMotivo" rows="3" required></textarea>
+                                <textarea id="incMotivo" rows="3" required placeholder="Describe detalladamente el motivo de la incidencia..."></textarea>
                             </div>
                             
                             <!-- CAJA DEL BANCO DE HORAS (Autorizar Recuperación) -->
@@ -763,6 +779,31 @@
         </div>
     </div>
 
+    <!-- MODAL DE REGISTRO MANUAL DE SALIDA (RN-53) -->
+    <div id="modalSalidaManual" class="modal-overlay hidden">
+        <div class="modal-content modal-pequeno">
+            <div class="modal-header">
+                <h3 class="modal-title">Registrar Salida Manual</h3>
+                <button id="btnCerrarModalSalida" class="btn-icon" title="Cerrar">
+                    <img src="recursos/icono-cerrar.svg" alt="Cerrar">
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="form-instructions">
+                    El empleado <strong id="nombreSalidaManual" class="texto-primario"></strong> no registró su salida. Ingresa la hora real en la que terminó su turno.
+                </p>
+                <form id="formSalidaManual" class="admin-form">
+                    <div class="form-group">
+                        <label for="horaSalidaManual">Hora de Salida Real *</label>
+                        <input type="time" id="horaSalidaManual" required>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary btn-auto">Registrar Salida</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
 
     <!--- SCRIPTS --->

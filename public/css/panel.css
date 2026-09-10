@@ -1043,3 +1043,43 @@ legend {
     line-height: 1.4;
 }
 
+/* ============================================
+   INPUTS DE DURACIÓN (HORAS Y MINUTOS)
+   ============================================ */
+.input-tiempo-grupo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.input-tiempo-grupo input[type="number"] {
+    width: 70px;
+    padding: 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    text-align: center;
+    font-family: var(--font);
+    font-size: 14px;
+}
+
+.input-tiempo-grupo input[type="number"]:focus {
+    border-color: var(--color-secondary);
+    outline: none;
+}
+
+.tiempo-label {
+    font-size: 14px;
+    color: var(--color-text-light);
+    font-weight: bold;
+}
+
+/* ============================================
+   MODAL PEQUEÑO Y TEXTOS
+   ============================================ */
+.modal-pequeno {
+    max-width: 350px;
+}
+
+.texto-primario {
+    color: var(--color-primary);
+}
