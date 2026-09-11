@@ -1083,3 +1083,35 @@ legend {
 .texto-primario {
     color: var(--color-primary);
 }
+
+/* Columna de observaciones en la tabla de reportes */
+/* .columna-observaciones {
+    font-size: 12px;
+    max-width: 200px;
+    white-space: normal; /* Permite que el texto baje a la siguiente línea
+    color: var(--color-text-light);
+    }    
+*/
+
+/* Columna que existe en el HTML pero no se muestra en la pantalla */
+.columna-oculta {
+    display: none;
+}
+
+/* ============================================
+   CAJAS DE RESUMEN EN MODAL DE REPORTES
+   ============================================ */
+/* Caja verde para horas laboradas */
+.resumen-laboradas-caja {
+    background-color: #f0fdf4; 
+    border-left: 4px solid #16a34a; 
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 15px;
+}
+
+/* Título verde con línea sutil */
+.titulo-verde {
+    color: #16a34a;
+    border-bottom-color: #bbf7d0;
+}

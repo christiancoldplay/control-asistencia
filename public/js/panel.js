@@ -1402,7 +1402,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         vacaciones: 0,
                         permisos: 0,
                         tiempoAfectadoTotal: 0,
-                        minutosLaborados: 0 
+                        minutosLaborados: 0,
+                        observaciones: emp.observaciones 
                     };
 
                     for (let d = new Date(fechaInicio); d <= fechaFin; d.setDate(d.getDate() + 1)) {
@@ -1419,17 +1420,18 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (!h.omitirDescanso) {
                                     minDia -= (h.duracionDescansoMinutos || 0);
                                 }
+                                // Sumamos las horas base por defecto
                                 reporteData[emp.id].minutosLaborados += minDia;
 
                                 // Verificar si le falta checar salida (Número impar de escaneos)
                                 const dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                                const numEscaneosDia = (asistenciasMap[emp.id] && asistenciasMap[emp.id][dStr]) ? asistenciasMap[emp.id][dStr] : 0;
-                                
+                                const numEscaneosDia = (asistenciasMap[emp.id] && asistenciasMap[emp.id][dStr]) ? asistenciasMap[emp.id][dStr] : 0;                                
+                                const tieneIncidencia = incidenciasMap[emp.id] && incidenciasMap[emp.id].has(dStr);
                                 const horaSalidaDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), salHora, salMin, 0);
                                 
+                                // Evaluacion del tiempo
                                 if (hoy > horaSalidaDate) {
-                                    const tieneIncidencia = incidenciasMap[emp.id] && incidenciasMap[emp.id].has(dStr);
-
+                                    // El turno ya termino (o es un dia en el pasado)                         
                                     if (numEscaneosDia === 0 && !tieneIncidencia) {
                                         // no asistio y no tiene incidencia -> Falta automatica
                                         window.registrarFaltaAutomatica(emp, h, new Date(d));
@@ -1443,6 +1445,20 @@ document.addEventListener('DOMContentLoaded', () => {
                                         reporteData[emp.id].minutosLaborados -= minDia; 
                                     }                                    
                                 }
+                                else if (d.toDateString() === hoy.toDateString()) {
+                                    // Es hoy, pero el turno aun no termina
+                                    if (numEscaneosDia === 0 && !tieneIncidencia) {
+                                        // No ha llegado. Le quitamos las horas base que le sumamos arriba.
+                                        // No le ponemos falta automática aún (esperamos a que acabe el turno).
+                                        reporteData[emp.id].minutosLaborados -= minDia;
+                                    }
+                                }
+                                else if (d > hoy) {
+                                    // C. Es un día en el FUTURO
+                                    // Le quitamos las horas base porque aún no las trabaja
+                                    reporteData[emp.id].minutosLaborados -= minDia;
+                                }
+    
                             }
                         }
                     }
@@ -1453,8 +1469,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     const empID = inc.empleadoID;
                     if (reporteData[empID]) {
                         const tipo = inc.tipoIncidencia;
-                        const minsAfectados = inc.horasAfectadas || 0;
+                        const minsAfectadosOriginales = inc.horasAfectadas || 0;
                         
+                        // calcular la deuda real actual
+                        let minsAfectadosDeuda = minsAfectadosOriginales;
+                        if (inc.estatus === 'compensada_totalmente') {
+                            minsAfectadosDeuda = 0;
+                        } else if (inc.estatus === 'compensada_parcialmente' || inc.estatus === 'pendiente_de_compensar') {
+                            minsAfectadosDeuda = inc.saldoPendiente !== undefined ? inc.saldoPendiente : minsAfectadosOriginales;
+                        }
+
                         let diasIncidencia = 1;
                         if (inc.fechaFin) {
                             const start = inc.fechaInicio.toDate();
@@ -1467,7 +1491,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (tipo === 'falta_injustificada') {
                             reporteData[empID].faltas += diasIncidencia; 
                         } else if (tipo === 'retardo_injustificado') {
-                            reporteData[empID].tiempoRetardos += minsAfectados; 
+                            reporteData[empID].tiempoRetardos += minsAfectadosOriginales; 
                         } else if (tipo === 'vacaciones') {
                             reporteData[empID].vacaciones += diasIncidencia;
                         } else if (tipo === 'permiso_con_goce' || tipo === 'permiso_sin_goce') {
@@ -1477,12 +1501,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         const tiposResta = ['falta_injustificada', 'retardo_injustificado', 'permiso_sin_goce', 'salida_anticipada'];
                         const tiposSuma = ['hora_extra', 'recuperacion_horas', 'compensacion_hora_extra'];
                         
-                        // ¡SOLUCIÓN BUG 1! Matemática limpia sin doble conteo
                         if (tiposResta.includes(tipo)) {
-                            reporteData[empID].tiempoAfectadoTotal += minsAfectados; 
-                            reporteData[empID].minutosLaborados -= minsAfectados;
+                            // sumamos a la columna solo la deuda que no se ha pagado
+                            reporteData[empID].tiempoAfectadoTotal += minsAfectadosDeuda; 
+                            // restamos del tiempo laborado el total original (la recuperacion lo sumara despues)
+                            reporteData[empID].minutosLaborados -= minsAfectadosOriginales;
                         } else if (tiposSuma.includes(tipo)) {
-                            reporteData[empID].minutosLaborados += minsAfectados;
+                            reporteData[empID].minutosLaborados += minsAfectadosOriginales;
                         }
                     }
                 });
@@ -1511,8 +1536,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>${emp.permisos}</td>
                         <td>${formatearMinutos(emp.tiempoAfectadoTotal)}</td>
                         <td><strong>${horasFormateadas}</strong></td>
+                        <td class="columna-oculta">${emp.observaciones || 'Sin observaciones'}</td>
                         <td>
-                            <button class="btn-icon" onclick="verDetallesReporte('${emp.id}')" title="Ver Detalle">
+                            <button class="btn-icon" onclick="verDetallesReporte('${emp.id}', ${emp.minutosLaborados})" title="Ver Detalle">
                                 <img src="recursos/icono-ver.svg" alt="Detalles">
                             </button>
                         </td>
@@ -1542,7 +1568,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. Consulta los datos del empleado.
     // 3. Consulta todas las incidencias del empleado en el periodo seleccionado.
     // 4. Agrupa las incidencias por tipo y las muestra en un modal.
-    window.verDetallesReporte = async function(idEmpleado) {
+    window.verDetallesReporte = async function(idEmpleado, minutosLaboradosTotales) {
         try {
             // -- 1. Leemos las fechas que el usuario selecciono en el formulario de reportes. --
             const fechaInicioStr = document.getElementById('filtroFechaInicio').value;
@@ -1622,12 +1648,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     // agregamos la incidencia al array de su tipo correspondiente
                     incidenciasAgrupadas[tipo].push(inc);
 
-                    // solo sumamos al total del modal si es una incidencia negativa
+                    // calcular deuda real para el total del modal
                     if (tiposRestaModal.includes(tipo)) {
-                        totalMinutosAfectadosModal += (inc.horasAfectadas || 0);    
+                        const minsAfectadosOriginales = inc.horasAfectadas || 0;
+                        let minsAfectadosDeuda = minsAfectadosOriginales;
+                        
+                        if (inc.estatus === 'compensada_totalmente') {
+                            minsAfectadosDeuda = 0;
+                        } else if (inc.estatus === 'compensada_parcialmente' || inc.estatus === 'pendiente_de_compensar') {
+                            minsAfectadosDeuda = inc.saldoPendiente !== undefined ? inc.saldoPendiente : minsAfectadosOriginales;
+                        }
+
+                        totalMinutosAfectadosModal += minsAfectadosDeuda; 
                     }                    
-                });
-                
+                });                
+                        
                 // --- 7. Generar el HTML agrupado para mostrar ---                
                 for (const [tipo, lista] of Object.entries(incidenciasAgrupadas)) {
                     // formateamos el titulo del tipo, reemplazamos '_' por ' '. 
@@ -1636,7 +1671,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 1. Calcular el conteo real sumando los días que abarca cada incidencia
                     let conteoReal = 0;
                     lista.forEach(inc => {
-                        let diasIncidencia = 1; // Por defecto, una incidencia vale 1 día/evento
+                        let diasIncidencia = 1; 
                         if (inc.fechaFin) {
                             const start = inc.fechaInicio.toDate();
                             const end = inc.fechaFin.toDate();
@@ -1669,7 +1704,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         // obtenemos el motivo de la incidencia o un mensaje 
                         const motivo = inc.motivo || 'Sin motivo registrado';
                         // mostramos las horas afectadas (en minutos) o 'N/A' si no hay
-                        const horas = inc.horasAfectadas ? `${formatearMinutos(inc.horasAfectadas)} afectadas` : 'N/A';
+                        const horas = inc.horasAfectadas ? `${formatearMinutos(inc.horasAfectadas)}` : 'N/A';
                         //Si la incidencia tiene estatus, la limpiamos tambien
                         let estatusIncidencia = "";
                         if (inc.estatus) {
@@ -1694,11 +1729,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     contenedorIncidencias.innerHTML += htmlGrupo;
                 }
 
-                // Agregar el resumen total al final de las incidencias
+                // Formatear las horas laboradas que recibimos como parámetro
+                const absMinutosLab = Math.abs(minutosLaboradosTotales);
+                const horasLabFormateadas = formatearMinutos(absMinutosLab);
+                const signoLab = minutosLaboradosTotales < 0 ? "-" : "";
+
+                // Inyectar los resumenes al final (Afectaciones y Laboradas)
                 contenedorIncidencias.innerHTML += `
                     <div class="resumen-afectaciones-caja">
                         <h4 class="detalle-seccion-titulo">Resumen de Afectaciones</h4>
                         <p class="reporte-texto-obs"><strong>Total de Tiempo Afectado:</strong> ${formatearMinutos(totalMinutosAfectadosModal)}</p>
+                    </div>
+
+                    <div class="resumen-laboradas-caja">
+                        <h4 class="detalle-seccion-titulo titulo-verde">Resumen de Horas Laboradas</h4>
+                        <p class="reporte-texto-obs"><strong>Total de Tiempo Laborado:</strong> ${signoLab}${horasLabFormateadas}</p>
                     </div>
                 `;
             }
@@ -1708,7 +1753,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('modalDetallesReporte').classList.remove('hidden');
 
         } catch (error) {
-            // -- Manejo de errores --
             console.error("Error al cargar detalles del reporte:", error);
             alert("Ocurrió un error al consultar las incidencias.");
         }
@@ -1853,9 +1897,9 @@ document.addEventListener('DOMContentLoaded', () => {
         btnExportarPDF.addEventListener('click', () => {
             // -- 1. Inicializar jsPDF --
             // Creacion de nueva instancia de jsPDF con configuracion:
-            // formato vertical (p), milímetros (mm), tamaño carta(letter)
+            // formato horizontal (p), milímetros (mm), tamaño carta(letter)
             const { jsPDF } = window.jspdf;
-            const documentoPDF = new jsPDF('p', 'mm', 'letter');
+            const documentoPDF = new jsPDF('l', 'mm', 'letter');
             // -- 2. Extraemos el texto que muestra el rango de fechas filtrado del reporte. --          
             const periodoTexto = document.getElementById('tituloResultadosPeriodo').textContent;
 
@@ -1870,25 +1914,42 @@ document.addEventListener('DOMContentLoaded', () => {
             documentoPDF.setTextColor(100, 100, 100);
             documentoPDF.text(periodoTexto, 14, 28);
 
+            // Clonamos la tabla para manipularla sin afectar la pantalla
+            const tablaOriginal = document.querySelector('#contenedorResultadosReporte .admin-table');
+            const tablaClon = tablaOriginal.cloneNode(true);
+
+            // Hacemos visible la columna de observaciones en el clon
+            tablaClon.querySelectorAll('.columna-oculta').forEach(el => el.classList.remove('columna-oculta'));
+            
+            // Eliminamos la última columna (Detalles) del clon
+            tablaClon.querySelectorAll('tr').forEach(fila => {
+                if (fila.lastElementChild) {
+                    fila.removeChild(fila.lastElementChild);
+                }
+            });
+
             // -- 4. Convertir la tabla HTML a tabla PDF y dibujarla. --
             // Usamos el plugin autoTable de jsPDF para convertir la tabla HTML a tabla PDF y dibujarla.
+            // DIBUJAMOS EL PDF CON LA TABLA CLONADA
             documentoPDF.autoTable({
                 // autoTable buscara la tabla con ese selector
-                html: '#contenedorResultadosReporte .admin-table',
+                html: tablaClon,
                 startY: 35, // posicion donde comenzara la tabla (35mm desde arriba)
                 theme: 'striped', //alterna colores entre filas para mejorar legibilidad
                 headStyles: { fillColor: [26, 58, 92] }, // Personalizacion del encabezado de la tabla
+                columnStyles: { 8: { cellWidth: 40 }}                
+                
                 // Especificamos manualmente las columnas que se quieren mostrar en el PDF
                 // Omitimos la columna de acciones (acciones) porque no tiene sentido en el PDF, solo en la interfaz web.
-                columns: [
-                    { header: 'Empleado', dataKey: 0 },
-                    { header: 'Depto.', dataKey: 1 },
-                    { header: 'Faltas', dataKey: 2 },
-                    { header: 'Retardos', dataKey: 3 },
-                    { header: 'Vacaciones', dataKey: 4 },
-                    { header: 'Permisos', dataKey: 5 },
-                    { header: 'Horas Lab.', dataKey: 6 }
-                ]
+                // columns: [
+                //     { header: 'Empleado', dataKey: 0 },
+                //     { header: 'Depto.', dataKey: 1 },
+                //     { header: 'Faltas', dataKey: 2 },
+                //     { header: 'Retardos', dataKey: 3 },
+                //     { header: 'Vacaciones', dataKey: 4 },
+                //     { header: 'Permisos', dataKey: 5 },
+                //     { header: 'Horas Lab.', dataKey: 6 }
+                // ]
             });
 
             // Obtenemos la fecha y definimos el nombre del archivo PDF
@@ -2674,7 +2735,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 empleadosArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
                 empleadosArray.forEach(emp => {
-                    // RN: Ignorar si la fecha del monitor es anterior a su contratación
+                    // Ignorar si la fecha del monitor es anterior a su contratación
                     const fechaIngresoEmp = new Date(emp.fechaIngreso + "T00:00:00");
                     if (fechaMonitor < fechaIngresoEmp) return; 
 
