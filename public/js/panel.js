@@ -2229,7 +2229,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const tiposConFechaFin = ['vacaciones', 'incapacidad'];
         const fechaFinVal = document.getElementById('incFechaFin').value;
-        
+
         if (tiposConFechaFin.includes(tipoIncidencia) && !fechaFinVal) {
             return "Este tipo de incidencia requiere una Fecha de Fin.";
         }
@@ -2498,6 +2498,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <button class="btn-icon" onclick="verDetallesIncidencia('${inc.id}')" title="Ver Detalles">
                         <img src="recursos/icono-ver.svg" alt="Ver">
                     </button>
+                    <button class="btn-icon icon-danger" onclick="eliminarIncidencia('${inc.id}')" title="Eliminar Incidencia">
+                        <img src="recursos/icono-baja.svg" alt="Eliminar">
+                    </button>
                 </td>
             `;
             tablaIncidenciasBody.appendChild(tr);
@@ -2633,6 +2636,88 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     configurarBuscador('buscadorIncidencias', 'tablaIncidenciasBody');
+
+    // ============================================
+    // G. ELIMINAR INCIDENCIA (Delete con Reversión Automática)
+    // ============================================
+    window.eliminarIncidencia = async function(id) {
+        const confirmar = confirm("¿Estás seguro de eliminar esta incidencia?\n\nEsta acción no se puede deshacer. Si es un pago, los saldos y deudas se revertirán automáticamente.");
+        if (!confirmar) return;
+
+        try {
+            const doc = await db.collection('incidencias').doc(id).get();
+            if (!doc.exists) return;
+            const inc = doc.data();
+
+            // 1. REVERTIR SALDOS SI BORRAMOS UNA DEUDA ACTIVA (Falta o Retardo)
+            if (inc.estatus === 'pendiente_de_compensar' || inc.estatus === 'compensada_parcialmente') {
+                const saldoARevertir = inc.saldoPendiente || 0;
+                await db.collection('empleados').doc(inc.empleadoID).update({
+                    saldoPendiente: firebase.firestore.FieldValue.increment(-saldoARevertir)
+                });
+            }
+
+            // 2. REVERTIR PAGOS (Ingeniería Inversa para Recuperación o Compensación)
+            if (inc.tipoIncidencia === 'recuperacion_horas' || inc.tipoIncidencia === 'compensacion_hora_extra') {
+                if (inc.incidenciaQueCompensa) {
+                    const deudaDoc = await db.collection('incidencias').doc(inc.incidenciaQueCompensa).get();
+                    
+                    if (deudaDoc.exists) {
+                        const deuda = deudaDoc.data();
+                        const pago = inc.horasAfectadas || 0;
+                        
+                        // A. Matemáticas de reversión con tope máximo
+                        // Sumamos el pago al saldo pendiente, pero NUNCA puede ser mayor a las horas afectadas originales
+                        let nuevoSaldoPendiente = (deuda.saldoPendiente || 0) + pago;
+                        if (nuevoSaldoPendiente > deuda.horasAfectadas) {
+                            nuevoSaldoPendiente = deuda.horasAfectadas;
+                        }
+                        
+                        // Calculamos cuánto se fue a la deuda y cuánto fue excedente
+                        const horasRestauradasADeuda = nuevoSaldoPendiente - (deuda.saldoPendiente || 0);
+                        const excedente = pago - horasRestauradasADeuda;
+
+                        // B. Restaurar estatus de la deuda original
+                        let nuevoEstatusDeuda = 'pendiente_de_compensar';
+                        if (nuevoSaldoPendiente < deuda.horasAfectadas && nuevoSaldoPendiente > 0) {
+                            nuevoEstatusDeuda = 'compensada_parcialmente';
+                        } else if (nuevoSaldoPendiente <= 0) {
+                            nuevoEstatusDeuda = 'compensada_totalmente';
+                        }
+
+                        // C. Actualizar la incidencia original (Revivir la deuda)
+                        await db.collection('incidencias').doc(inc.incidenciaQueCompensa).update({
+                            saldoPendiente: nuevoSaldoPendiente,
+                            estatus: nuevoEstatusDeuda
+                        });
+
+                        // D. Revertir saldos en el perfil del empleado
+                        if (inc.tipoIncidencia === 'recuperacion_horas') {
+                            // Trabajó para pagar: Le devolvemos la deuda y le quitamos el excedente que se le regaló
+                            await db.collection('empleados').doc(inc.empleadoID).update({
+                                saldoPendiente: firebase.firestore.FieldValue.increment(horasRestauradasADeuda),
+                                saldoHorasExtra: firebase.firestore.FieldValue.increment(-excedente)
+                            });
+                        } else if (inc.tipoIncidencia === 'compensacion_hora_extra') {
+                            // Pagó con ahorros: Le devolvemos la deuda y le regresamos TODOS sus ahorros gastados
+                            await db.collection('empleados').doc(inc.empleadoID).update({
+                                saldoPendiente: firebase.firestore.FieldValue.increment(horasRestauradasADeuda),
+                                saldoHorasExtra: firebase.firestore.FieldValue.increment(pago)
+                            });
+                        }
+                    }
+                }
+            }
+
+            // 3. Eliminar el documento de Firestore
+            await db.collection('incidencias').doc(id).delete();
+            alert("Incidencia eliminada y saldos revertidos correctamente.");
+
+        } catch (error) {
+            console.error("Error al eliminar incidencia:", error);
+            alert("Ocurrió un error al intentar eliminar el registro.");
+        }
+    };
 
     // ============================================
     // 18. VER DETALLES DE INCIDENCIA (Modal)
