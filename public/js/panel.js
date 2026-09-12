@@ -2002,10 +2002,34 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('tituloFormIncidencia').textContent = "Registrar Nueva Incidencia";
         formRegistroIncidencia.querySelector('button[type="submit"]').textContent = "Guardar Incidencia";
         
-        cajaBancoHoras.classList.add('hidden');
-        cajaRecuperacionHoras.classList.add('hidden');
-        incFechaFin.disabled = false;
-        incFechaFin.classList.remove('input-bloqueado'); // Asume que creaste esta clase en CSS para fondos grises
+        const cajaBancoHoras = document.getElementById('cajaBancoHoras');
+        const cajaRecuperacionHoras = document.getElementById('cajaRecuperacionHoras');
+        if (cajaBancoHoras) cajaBancoHoras.classList.add('hidden');
+        if (cajaRecuperacionHoras) cajaRecuperacionHoras.classList.add('hidden');
+        
+        // DESBLOQUEAR CAMPOS PARA CREACIÓN NUEVA
+        const incEmpleado = document.getElementById('incEmpleado');
+        const incFechaInicio = document.getElementById('incFechaInicio');
+        const incFechaFin = document.getElementById('incFechaFin');
+        const incHoras = document.getElementById('incHoras');
+        const incMinutos = document.getElementById('incMinutos');
+
+        incEmpleado.disabled = false;
+        incFechaInicio.readOnly = false;
+        incFechaFin.readOnly = false;
+        incHoras.readOnly = false;
+        incMinutos.readOnly = false;
+
+        incFechaInicio.classList.remove('input-bloqueado');
+        incFechaFin.classList.remove('input-bloqueado');
+        incHoras.classList.remove('input-bloqueado');
+        incMinutos.classList.remove('input-bloqueado');        
+
+        // Mostrar todas las opciones del select de tipos
+        Array.from(document.getElementById('incTipo').options).forEach(opt => {
+            opt.hidden = false;
+            opt.disabled = false;
+        });
     }
 
     // --- B. SUB-NAVEGACIÓN Y CARGA DE EMPLEADOS ---
@@ -2203,8 +2227,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!tiempoValido) return "El tiempo afectado debe ser mayor a 0.";
 
-        const tiposConFechaFin = ['vacaciones', 'permiso_con_goce', 'permiso_sin_goce', 'incapacidad'];
-        const fechaFinVal = incFechaFin.value;
+        const tiposConFechaFin = ['vacaciones', 'incapacidad'];
+        const fechaFinVal = document.getElementById('incFechaFin').value;
+        
         if (tiposConFechaFin.includes(tipoIncidencia) && !fechaFinVal) {
             return "Este tipo de incidencia requiere una Fecha de Fin.";
         }
@@ -2530,6 +2555,51 @@ document.addEventListener('DOMContentLoaded', () => {
             
             document.getElementById('incAutorizantes').value = inc.autorizantes || "";
             document.getElementById('incMotivo').value = inc.motivo || "";
+
+            // PROTECCIÓN DE EDICIÓN  ---  
+            
+            // 1. Bloquear campos estructurales para evitar corrupción de datos
+            const incEmpleadoInput = document.getElementById('incEmpleado');
+            const incFechaInicioInput = document.getElementById('incFechaInicio');
+            const incFechaFinInput = document.getElementById('incFechaFin');
+            const incHorasInput = document.getElementById('incHoras');
+            const incMinutosInput = document.getElementById('incMinutos');
+
+            incEmpleadoInput.disabled = true; // El select se bloquea con disabled
+            incFechaInicioInput.readOnly = true;
+            incHorasInput.readOnly = true;
+            incMinutosInput.readOnly = true;
+            
+            // Aplicar clase visual de bloqueo
+            incFechaInicioInput.classList.add('input-bloqueado');
+            incFechaFinInput.classList.add('input-bloqueado');
+            incHorasInput.classList.add('input-bloqueado');
+            incMinutosInput.classList.add('input-bloqueado');       
+            
+            // 2. Filtrar los Tipos de Incidencia permitidos
+            const tipoOriginal = inc.tipoIncidencia;
+            let opcionesPermitidas = [tipoOriginal]; 
+
+            if (['falta_injustificada', 'falta_justificada', 'vacaciones', 'suspension', 'incapacidad'].includes(tipoOriginal)) {
+                opcionesPermitidas = ['falta_injustificada', 'falta_justificada', 'permiso_con_goce', 'permiso_sin_goce', 'vacaciones', 'suspension', 'incapacidad'];
+            } else if (['retardo_injustificado', 'retardo_justificado'].includes(tipoOriginal)) {
+                opcionesPermitidas = ['retardo_injustificado', 'retardo_justificado', 'permiso_con_goce', 'permiso_sin_goce'];
+            } else if (tipoOriginal === 'salida_anticipada') {
+                opcionesPermitidas = ['salida_anticipada', 'permiso_con_goce', 'permiso_sin_goce'];
+            }           
+            
+            // Ocultar las opciones que no pertenecen grupo permitido
+            Array.from(document.getElementById('incTipo').options).forEach(opt => {
+                if (opt.value === "") return; // Dejamos el "Seleccione..."
+                
+                if (opcionesPermitidas.includes(opt.value)) {
+                    opt.hidden = false;
+                    opt.disabled = false;
+                } else {
+                    opt.hidden = true;
+                    opt.disabled = true;
+                }
+            });          
 
             if (inc.fechaInicio) {
                 const f = inc.fechaInicio.toDate();

@@ -1115,3 +1115,12 @@ legend {
     color: #16a34a;
     border-bottom-color: #bbf7d0;
 }
+
+/* ============================================
+   ESTADOS DE FORMULARIO 
+   ============================================ */
+.input-bloqueado {
+    background-color: #e9ecef !important;
+    color: var(--color-text-light);
+    cursor: not-allowed;
+}
