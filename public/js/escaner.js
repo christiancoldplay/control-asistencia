@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================
     // 4. PROCESAR EL CÓDIGO LEÍDO (Con Retardos Automáticos)
     // ============================================
-    async function onEscaneoExitoso(textoDecodificado) {
+     async function onEscaneoExitoso(textoDecodificado) {
         if (escannerActivo) {
             await escannerActivo.stop();
         }
@@ -122,14 +122,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const ahora = new Date();
-            
-            // 1. LÓGICA DE RETARDOS AUTOMÁTICOS
-            // Averiguamos qué día es hoy para buscar su horario
             const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
             const diaHoyStr = diasSemana[ahora.getDay()];
             const horarioHoy = (emp.horario && emp.horario[diaHoyStr]) ? emp.horario[diaHoyStr] : null;
 
-            // Consultamos cuántos escaneos lleva hoy para saber si es su entrada
             const inicioDia = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), 0, 0, 0);
             const finDia = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), 23, 59, 59);
             
@@ -141,56 +137,83 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const numEscaneos = escaneosHoy.size;
 
-            // Si es su PRIMER escaneo del día (Entrada) y tiene horario configurado
-            if (numEscaneos === 0 && horarioHoy && horarioHoy.entrada) {
-                const [entHora, entMin] = horarioHoy.entrada.split(':').map(Number);
-                const horaEntradaExacta = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), entHora, entMin, 0);
-                
-                // Si la hora actual (al checar QR) es mayor a su hora de entrada (cero tolerancia).
-                if (ahora > horaEntradaExacta) {
+            // --- LOGICA DE INCIDENCIAS AUTOMÁTICAS ---
+            if (horarioHoy) {
+                // A) EVALUAR ENTRADA (Primer escaneo del día)
+                if (numEscaneos === 0 && horarioHoy.entrada) {
+                    const [entHora, entMin] = horarioHoy.entrada.split(':').map(Number);
+                    const horaEntradaExacta = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), entHora, entMin, 0);
                     
-                    // 1. Calculamos los minutos brutos de retardo
-                    const diffMilisegundos = ahora - horaEntradaExacta;
-                    let minutosRetardo = Math.floor(diffMilisegundos / (1000 * 60));
+                    if (ahora > horaEntradaExacta) {
+                        const diffMilisegundos = ahora - horaEntradaExacta;
+                        let minutosRetardo = Math.floor(diffMilisegundos / (1000 * 60));
 
-                    // 2. Descontar el tiempo de descanso (Valor Neutro)
-                    if (horarioHoy.inicioDescanso && !horarioHoy.omitirDescanso) {
-                        const [descHora, descMin] = horarioHoy.inicioDescanso.split(':').map(Number);
-                        const horaInicioDescanso = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), descHora, descMin, 0);
-                        const duracionDescanso = horarioHoy.duracionDescansoMinutos || 0;
-                        const horaFinDescanso = new Date(horaInicioDescanso.getTime() + (duracionDescanso * 60000));
+                        // Descontar tiempo de descanso si llegó durante o después de la comida
+                        if (horarioHoy.inicioDescanso && !horarioHoy.omitirDescanso) {
+                            const [descHora, descMin] = horarioHoy.inicioDescanso.split(':').map(Number);
+                            const horaInicioDescanso = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), descHora, descMin, 0);
+                            const duracionDescanso = horarioHoy.duracionDescansoMinutos || 0;
+                            const horaFinDescanso = new Date(horaInicioDescanso.getTime() + (duracionDescanso * 60000));
 
-                        if (ahora > horaInicioDescanso) {
-                            if (ahora < horaFinDescanso) {
-                                // Llegó DURANTE el descanso: Restamos solo los minutos que lleva el descanso
-                                const minutosTraslapados = Math.floor((ahora - horaInicioDescanso) / (1000 * 60));
-                                minutosRetardo -= minutosTraslapados;
-                            } else {
-                                // Llegó DESPUÉS del descanso: Restamos el descanso completo
-                                minutosRetardo -= duracionDescanso;
+                            if (ahora > horaInicioDescanso) {
+                                if (ahora < horaFinDescanso) {
+                                    const minutosTraslapados = Math.floor((ahora - horaInicioDescanso) / (1000 * 60));
+                                    minutosRetardo -= minutosTraslapados;
+                                } else {
+                                    minutosRetardo -= duracionDescanso;
+                                }
                             }
                         }
-                    }
 
-                    // Creamos la incidencia de retardo automáticamente
-                    await db.collection('incidencias').add({
-                        empleadoID: textoDecodificado,
-                        empleadoNombre: emp.nombre,
-                        tipoIncidencia: 'retardo_injustificado',
-                        fechaInicio: firebase.firestore.Timestamp.fromDate(ahora),
-                        horasAfectadas: minutosRetardo,
-                        autorizantes: 'Sistema Automático',
-                        motivo: null,
-                        estatus: 'pendiente_de_revision',
-                        saldoPendiente: null,
-                        fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
-                        registradoPor: 'sistema@linguatec.com'
-                    });
-                    console.log(`Retardo automático registrado: ${minutosRetardo} min.`);
+                        if (minutosRetardo > 0) {
+                            await db.collection('incidencias').add({
+                                empleadoID: textoDecodificado,
+                                empleadoNombre: emp.nombre,
+                                tipoIncidencia: 'retardo_injustificado',
+                                fechaInicio: firebase.firestore.Timestamp.fromDate(ahora),
+                                horasAfectadas: minutosRetardo, 
+                                autorizantes: 'Sistema Automático',
+                                motivo: `El empleado registró su entrada tarde. Tuvo un retardo de: ${formatearMinutos(minutosRetardo)}. Su hora de entrada oficial es a las: ${horarioHoy.entrada}.`,
+                                estatus: 'pendiente_de_revision',
+                                saldoPendiente: null,
+                                fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
+                                registradoPor: 'sistema@linguatec.com'
+                            });
+                        }
+                    }
+                }
+                
+                // B) EVALUAR SALIDA ANTICIPADA (Último escaneo del día)
+                const esEscaneoDeSalida = (emp.tipoJornada === 'continua_sin_descanso' || horarioHoy.omitirDescanso) ? (numEscaneos === 1) : (numEscaneos === 3);
+
+                if (esEscaneoDeSalida && horarioHoy.salida) {
+                    const [salHora, salMin] = horarioHoy.salida.split(':').map(Number);
+                    const horaSalidaExacta = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), salHora, salMin, 0);
+                    
+                    if (ahora < horaSalidaExacta) {
+                        const diffMilisegundos = horaSalidaExacta - ahora;
+                        const minutosAnticipados = Math.floor(diffMilisegundos / (1000 * 60));
+
+                        if (minutosAnticipados > 0) {
+                            await db.collection('incidencias').add({
+                                empleadoID: textoDecodificado,
+                                empleadoNombre: emp.nombre,
+                                tipoIncidencia: 'salida_anticipada',
+                                fechaInicio: firebase.firestore.Timestamp.fromDate(ahora),
+                                horasAfectadas: minutosAnticipados, 
+                                autorizantes: 'Sistema Automático',
+                                motivo: `El empleado registró su salida temprano. Se retiró ${formatearMinutos(minutosAnticipados)} antes de su hora oficial (${horarioHoy.salida}).`,
+                                estatus: 'pendiente_de_revision',
+                                saldoPendiente: null,
+                                fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
+                                registradoPor: 'sistema@linguatec.com'
+                            });
+                        }
+                    }
                 }
             }
 
-            // 2. Guardamos el registro de asistencia normal
+            // Guardamos el registro de asistencia normal
             const registroData = {
                 empleadoID: textoDecodificado,
                 fechaHora: firebase.firestore.FieldValue.serverTimestamp(),
@@ -200,8 +223,6 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             await db.collection('registrosAsistencia').add(registroData);
-
-            // 3. Mostramos el éxito en la pantalla
             mostrarResultado(emp.nombre);
 
         } catch (error) {

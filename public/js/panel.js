@@ -786,12 +786,27 @@ document.addEventListener('DOMContentLoaded', () => {
             //proteccion del estatus por si es undefined
             const estatusDb = emp.estatus || 'inactivo';
 
+            // Logica para el saldo de horas extra
+            const saldoExtraMinutos = emp.saldoHorasExtra || 0;
+            const horasExtra = Math.floor(saldoExtraMinutos / 60);
+            const minsExtra = saldoExtraMinutos % 60;
+
+            // padStart(2, '0') asegura que siempre haya dos dígitos (ej. '05' en lugar de '5')
+            const horasExtraStr = String(horasExtra).padStart(2, '0');
+            const minsExtraStr = String(minsExtra).padStart(2, '0');
+
+            let saldoExtraFormateado = '';
+            if (horasExtra > 0) {
+                saldoExtraFormateado = `${horasExtraStr}:${minsExtraStr} hrs.`;
+            } else {
+                saldoExtraFormateado = `00:${minsExtraStr} mins.`;
+            }
+
             // Inyeccion del HTML en el modal agrupado por secciones
             modalBody.innerHTML = `
                 <div class="detalle-grid">
                     <div class="detalle-foto">
                         <img src="${emp.fotoURL || ''}" alt="Foto de ${emp.nombre}" onerror="this.src='recursos/sin-foto.svg'">
-                        <!-- se usa la variable protegida estatusDb -->
                         <div class="detalle-estatus-contenedor">
                             <span class="estatus-${estatusDb} detalle-estatus-texto">${estatusDb.toUpperCase()}</span>
                         </div>
@@ -813,7 +828,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <p><strong>Cargo:</strong> ${emp.cargo || 'No registrado'}</p>
                         <p><strong>Fecha Ingreso:</strong> ${emp.fechaIngreso || 'No registrado'}</p>
                         <p><strong>Jornada:</strong> ${emp.jornada} hrs (${emp.tipoJornada || 'No registrado'})</p>
-                        <p><strong>Saldo horas extra:</strong> ${emp.saldoHorasExtra || 0} hrs</p>                        
+
+                        <p><strong>Saldo horas extra:</strong> ${saldoExtraFormateado}</p>                        
                         
                         <h4 class="detalle-seccion-titulo">Datos Bancarios</h4>
                         <p><strong>Banco:</strong> ${emp.banco || 'No registrado'}</p>
@@ -1499,7 +1515,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
 
                         const tiposResta = ['falta_injustificada', 'retardo_injustificado', 'permiso_sin_goce', 'salida_anticipada'];
-                        const tiposSuma = ['hora_extra', 'recuperacion_horas', 'compensacion_hora_extra'];
+                        const tiposSuma = ['recuperacion_horas', 'compensacion_hora_extra'];
                         
                         if (tiposResta.includes(tipo)) {
                             // sumamos a la columna solo la deuda que no se ha pagado
@@ -1994,6 +2010,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let incidenciaEditandoID = null;
     let estatusIncidenciaOriginal = null;
+    let horasAfectadasOriginales = 0; // para saber si le cambiaron el tiempo al editar
 
     // --- A. LIMPIAR FORMULARIO ---
     function limpiarFormularioIncidencia() {
@@ -2010,20 +2027,20 @@ document.addEventListener('DOMContentLoaded', () => {
         // DESBLOQUEAR CAMPOS PARA CREACIÓN NUEVA
         const incEmpleado = document.getElementById('incEmpleado');
         const incFechaInicio = document.getElementById('incFechaInicio');
-        const incFechaFin = document.getElementById('incFechaFin');
-        const incHoras = document.getElementById('incHoras');
-        const incMinutos = document.getElementById('incMinutos');
+        //const incFechaFin = document.getElementById('incFechaFin');
+        //const incHoras = document.getElementById('incHoras');
+        //const incMinutos = document.getElementById('incMinutos');
 
         incEmpleado.disabled = false;
         incFechaInicio.readOnly = false;
-        incFechaFin.readOnly = false;
-        incHoras.readOnly = false;
-        incMinutos.readOnly = false;
+        //incFechaFin.readOnly = false;
+        //incHoras.readOnly = false;
+        //incMinutos.readOnly = false;
 
         incFechaInicio.classList.remove('input-bloqueado');
-        incFechaFin.classList.remove('input-bloqueado');
-        incHoras.classList.remove('input-bloqueado');
-        incMinutos.classList.remove('input-bloqueado');        
+        // incFechaFin.classList.remove('input-bloqueado');
+        // incHoras.classList.remove('input-bloqueado');
+        // incMinutos.classList.remove('input-bloqueado');        
 
         // Mostrar todas las opciones del select de tipos
         Array.from(document.getElementById('incTipo').options).forEach(opt => {
@@ -2238,7 +2255,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return null; 
     }
-
+    
     if (formRegistroIncidencia) {
         formRegistroIncidencia.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -2258,7 +2275,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const empleadoID = opcionSeleccionada.value;
                 const tipoIncidencia = selectTipoIncidencia.value;
                 
-                // --- Calculo matemático de horas afectadas dinamico ---
+                // --- Calculo de horas afectadas ---
                 let horasAfectadas = 0;
                 if (tipoIncidencia === 'recuperacion_horas') {
                     const inicioStr = document.getElementById('incHoraInicioRec').value;
@@ -2273,7 +2290,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 // Validación de fondos suficientes
-                if (tipoIncidencia === 'compensacion_hora_extra') {
+                if (tipoIncidencia === 'compensacion_hora_extra' && !incidenciaEditandoID) {
                     const empDoc = await db.collection('empleados').doc(empleadoID).get();
                     const saldoExtra = empDoc.data().saldoHorasExtra || 0;
                     if (horasAfectadas > saldoExtra) {
@@ -2287,14 +2304,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const incidenciaData = {
                     empleadoID: empleadoID,
                     empleadoNombre: opcionSeleccionada.getAttribute('data-nombre'),
-                    tipoIncidencia: tipoIncidencia,
+                    tipoIncidencia: tipoIncidencia, 
                     fechaInicio: firebase.firestore.Timestamp.fromDate(new Date(document.getElementById('incFechaInicio').value + "T00:00:00")),
                     horasAfectadas: horasAfectadas,
                     autorizantes: document.getElementById('incAutorizantes').value.trim(),
                     motivo: document.getElementById('incMotivo').value.trim()
                 };
 
-                const fechaFinVal = incFechaFin.value;
+                const fechaFinVal = document.getElementById('incFechaFin').value;
                 if (fechaFinVal) {
                     incidenciaData.fechaFin = firebase.firestore.Timestamp.fromDate(new Date(fechaFinVal + "T23:59:59"));
                 } else if (incidenciaEditandoID) {
@@ -2305,7 +2322,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let estatusFinal = 'aprobada'; 
 
                 if (incidenciaEditandoID) {
-                    // MODO EDICIÓN
+                    // --- MODO EDICIÓN ---
                     if (tiposJustificados.includes(tipoIncidencia)) {
                         estatusFinal = 'aprobada';
                     } else if (incAutorizarRecuperacion && incAutorizarRecuperacion.checked){
@@ -2319,20 +2336,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     incidenciaData.estatus = estatusFinal;
                     await db.collection('incidencias').doc(incidenciaEditandoID).update(incidenciaData);
 
-                    // Actualizar saldo deudor
+                    // Actualizar saldo deudor si cambio la autorizacion
                     if (estatusIncidenciaOriginal !== 'pendiente_de_compensar' && estatusFinal === 'pendiente_de_compensar') {
                         await db.collection('empleados').doc(empleadoID).update({
                             saldoPendiente: firebase.firestore.FieldValue.increment(horasAfectadas)
                         });
                     } else if (estatusIncidenciaOriginal === 'pendiente_de_compensar' && estatusFinal !== 'pendiente_de_compensar'){
                         await db.collection('empleados').doc(empleadoID).update({
-                            saldoPendiente: firebase.firestore.FieldValue.increment(-horasAfectadas)
+                            saldoPendiente: firebase.firestore.FieldValue.increment(-horasAfectadasOriginales)
                         });
+                    } else if (estatusIncidenciaOriginal === 'pendiente_de_compensar' && estatusFinal === 'pendiente_de_compensar') {
+                        // Si solo le cambiaron la cantidad de horas a la deuda
+                        const diferencia = horasAfectadas - horasAfectadasOriginales;
+                        if (diferencia !== 0) await db.collection('empleados').doc(empleadoID).update({ saldoPendiente: firebase.firestore.FieldValue.increment(diferencia) });
+                    
                     }
+
+                    // Actualizar saldo a favor si editaron una Hora Extra
+                    if (tipoIncidencia === 'hora_extra') {
+                        const diferencia = horasAfectadas - horasAfectadasOriginales;
+                        if (diferencia !== 0) {
+                            await db.collection('empleados').doc(empleadoID).update({ saldoHorasExtra: firebase.firestore.FieldValue.increment(diferencia) });
+                        }
+                    }
+
                     alert("Incidencia actualizada exitosamente.");
 
                 } else {
-                    // MODO CREACIÓN
+                    // -- MODO CREACION --
                     incidenciaData.estatus = 'aprobada'; 
                     incidenciaData.fechaCreacion = firebase.firestore.FieldValue.serverTimestamp();
                     
@@ -2340,7 +2371,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const correoAdmin = (usuarioActual && usuarioActual.email) ? usuarioActual.email : document.getElementById('userNameDisplay').textContent;
                     incidenciaData.registradoPor = correoAdmin;
 
-                    // LÓGICA DE PAGO DE DEUDAS
+                    // -- LOGICA DE PAGO DE DEUDAS --
                     if (tipoIncidencia === 'recuperacion_horas' || tipoIncidencia === 'compensacion_hora_extra') {
                         const deudaID = selectIncidenciaVinculada.value;
                         if (deudaID) {
@@ -2386,6 +2417,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
 
+                    // -- LOGICA DE GANANCIA DE HORAS EXTRA --
+                    else if (tipoIncidencia === 'hora_extra') {
+                        // Le sumamos el tiempo directamente a la "cuenta de ahorros" del empleado
+                        await db.collection('empleados').doc(empleadoID).update({
+                            // sumamos las horas directamente al saldo a favor del empleado
+                            saldoHorasExtra: firebase.firestore.FieldValue.increment(horasAfectadas)
+                        });
+                    }
+
                     await db.collection('incidencias').add(incidenciaData);
                     alert("Incidencia registrada exitosamente.");
                 }
@@ -2402,19 +2442,31 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // -- E. Cargar y Mostrar Incidencias (Read - Paginación y Pestañas) --
+    // -- E. Cargar y Mostrar Incidencias (Paginacion, Pestañas y Búsqueda) --
     let todasLasIncidencias = [];
+    let incidenciasFiltradas = []; // Arreglo para guardar los resultados de búsqueda
     let paginaActualIncidencias = 1;
     const incidenciasPorPagina = 8;
+    let terminoBusquedaIncidencias = ""; // Lo que escribe la Directora
     
     const controlesPaginacion = document.getElementById('controlesPaginacionIncidencias');
     const btnPaginaAnterior = document.getElementById('btnPaginaAnterior');
     const btnPaginaSiguiente = document.getElementById('btnPaginaSiguiente');
     const textoPaginacion = document.getElementById('textoPaginacion');
+    const buscadorIncidencias = document.getElementById('buscadorIncidencias');
 
     let filtroEstatusIncidencias = 'pendiente_de_revision'; 
     const btnTabPendientes = document.getElementById('btnTabPendientes');
     const btnTabAtendidas = document.getElementById('btnTabAtendidas');
+
+    // 1. Busqueda Inteligente en Memoria
+    if (buscadorIncidencias) {
+        buscadorIncidencias.addEventListener('input', (e) => {
+            terminoBusquedaIncidencias = e.target.value.toLowerCase();
+            paginaActualIncidencias = 1; // Si busca algo, lo regresamos a la página 1
+            renderizarPaginaIncidencias();
+        });
+    }
 
     if (btnTabPendientes && btnTabAtendidas) {
         btnTabPendientes.addEventListener('click', () => {
@@ -2423,6 +2475,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btnTabPendientes.style.color = 'var(--color-primary)';
             btnTabAtendidas.style.borderBottom = 'none';
             btnTabAtendidas.style.color = 'var(--color-text-light)';
+            paginaActualIncidencias = 1; // Resetear página al cambiar pestaña
             cargarIncidencias(); 
         });
 
@@ -2432,6 +2485,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btnTabAtendidas.style.color = 'var(--color-primary)';
             btnTabPendientes.style.borderBottom = 'none';
             btnTabPendientes.style.color = 'var(--color-text-light)';
+            paginaActualIncidencias = 1; // Resetear página al cambiar pestaña
             cargarIncidencias(); 
         });
     }
@@ -2450,9 +2504,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 todasLasIncidencias.push({ id: doc.id, ...doc.data() });
             });
 
-            const totalPaginas = Math.ceil(todasLasIncidencias.length / incidenciasPorPagina) || 1;
-            if (paginaActualIncidencias > totalPaginas) paginaActualIncidencias = totalPaginas;
-            
             renderizarPaginaIncidencias();
         }, (error) => {
             console.error("Error al cargar incidencias:", error);
@@ -2462,17 +2513,30 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderizarPaginaIncidencias() {
         tablaIncidenciasBody.innerHTML = ''; 
         
-        if (todasLasIncidencias.length === 0) {
-            tablaIncidenciasBody.innerHTML = `<tr><td colspan="6" class="table-empty-state">No hay incidencias registradas.</td></tr>`;
+        // 2. APLICAR FILTRO DE BÚSQUEDA A TODOS LOS DATOS
+        incidenciasFiltradas = todasLasIncidencias.filter(inc => {
+            if (!terminoBusquedaIncidencias) return true;
+            
+            // Unimos todos los textos útiles para buscar en ellos
+            const textoBusqueda = `${inc.empleadoNombre} ${inc.empleadoID} ${inc.tipoIncidencia} ${inc.estatus} ${inc.motivo}`.toLowerCase();
+            return textoBusqueda.includes(terminoBusquedaIncidencias);
+        });
+
+        if (incidenciasFiltradas.length === 0) {
+            tablaIncidenciasBody.innerHTML = `<tr><td colspan="6" class="table-empty-state">No se encontraron incidencias.</td></tr>`;
             if (controlesPaginacion) controlesPaginacion.classList.add('hidden');
             return;
         }
         
         if (controlesPaginacion) controlesPaginacion.classList.remove('hidden');
         
+        // 3. MATEMÁTICAS DE PAGINACIÓN SOBRE LOS DATOS FILTRADOS
+        const totalPaginas = Math.ceil(incidenciasFiltradas.length / incidenciasPorPagina) || 1;
+        if (paginaActualIncidencias > totalPaginas) paginaActualIncidencias = totalPaginas;
+        
         const indiceInicio = (paginaActualIncidencias - 1) * incidenciasPorPagina;
         const indiceFin = indiceInicio + incidenciasPorPagina;
-        const incidenciasA_Mostrar = todasLasIncidencias.slice(indiceInicio, indiceFin);
+        const incidenciasA_Mostrar = incidenciasFiltradas.slice(indiceInicio, indiceFin);
         
         incidenciasA_Mostrar.forEach((inc) => {
             const tr = document.createElement('tr');
@@ -2505,11 +2569,11 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             tablaIncidenciasBody.appendChild(tr);
         });
-        actualizarBotonesPaginacion();
+        
+        actualizarBotonesPaginacion(totalPaginas);
     }
 
-    function actualizarBotonesPaginacion() {
-        const totalPaginas = Math.ceil(todasLasIncidencias.length / incidenciasPorPagina) || 1;
+    function actualizarBotonesPaginacion(totalPaginas) {
         textoPaginacion.textContent = `Página ${paginaActualIncidencias} de ${totalPaginas}`;
         btnPaginaAnterior.disabled = paginaActualIncidencias === 1;
         btnPaginaSiguiente.disabled = paginaActualIncidencias === totalPaginas;
@@ -2523,7 +2587,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         btnPaginaSiguiente.addEventListener('click', () => {
-            const totalPaginas = Math.ceil(todasLasIncidencias.length / incidenciasPorPagina);
+            const totalPaginas = Math.ceil(incidenciasFiltradas.length / incidenciasPorPagina);
             if (paginaActualIncidencias < totalPaginas) {
                 paginaActualIncidencias++;
                 renderizarPaginaIncidencias();
@@ -2540,6 +2604,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             incidenciaEditandoID = id;
             estatusIncidenciaOriginal = inc.estatus;
+            horasAfectadasOriginales = inc.horasAfectadas || 0; // Guardamos las horas viejas
 
             const snapshot = await db.collection('empleados').where('estatus', '==', 'activo').orderBy('nombre', 'asc').get();
             selectIncEmpleado.innerHTML = '<option value="">Seleccione un empleado...</option>';
@@ -2560,41 +2625,33 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('incMotivo').value = inc.motivo || "";
 
             // PROTECCIÓN DE EDICIÓN  ---  
-            
+
             // 1. Bloquear campos estructurales para evitar corrupción de datos
+            // Bloqueamos solo empleado y fecha (el tiempo si se puede editar)
             const incEmpleadoInput = document.getElementById('incEmpleado');
             const incFechaInicioInput = document.getElementById('incFechaInicio');
-            const incFechaFinInput = document.getElementById('incFechaFin');
-            const incHorasInput = document.getElementById('incHoras');
-            const incMinutosInput = document.getElementById('incMinutos');
 
-            incEmpleadoInput.disabled = true; // El select se bloquea con disabled
+            incEmpleadoInput.disabled = true; // bloqueamos el select con disabled:true
             incFechaInicioInput.readOnly = true;
-            incHorasInput.readOnly = true;
-            incMinutosInput.readOnly = true;
             
             // Aplicar clase visual de bloqueo
-            incFechaInicioInput.classList.add('input-bloqueado');
-            incFechaFinInput.classList.add('input-bloqueado');
-            incHorasInput.classList.add('input-bloqueado');
-            incMinutosInput.classList.add('input-bloqueado');       
+            incFechaInicioInput.classList.add('input-bloqueado');   
             
             // 2. Filtrar los Tipos de Incidencia permitidos
             const tipoOriginal = inc.tipoIncidencia;
             let opcionesPermitidas = [tipoOriginal]; 
 
-            if (['falta_injustificada', 'falta_justificada', 'vacaciones', 'suspension', 'incapacidad'].includes(tipoOriginal)) {
-                opcionesPermitidas = ['falta_injustificada', 'falta_justificada', 'permiso_con_goce', 'permiso_sin_goce', 'vacaciones', 'suspension', 'incapacidad'];
-            } else if (['retardo_injustificado', 'retardo_justificado'].includes(tipoOriginal)) {
-                opcionesPermitidas = ['retardo_injustificado', 'retardo_justificado', 'permiso_con_goce', 'permiso_sin_goce'];
-            } else if (tipoOriginal === 'salida_anticipada') {
-                opcionesPermitidas = ['salida_anticipada', 'permiso_con_goce', 'permiso_sin_goce'];
-            }           
+            const grupoDiasCompletos = ['falta_injustificada', 'falta_justificada', 'permiso_con_goce', 'permiso_sin_goce', 'vacaciones', 'suspension', 'incapacidad'];
+            const grupoParciales = ['retardo_injustificado', 'retardo_justificado', 'salida_anticipada'];
+            const grupoBancoHoras = ['hora_extra', 'recuperacion_horas', 'compensacion_hora_extra'];
+
+            if (grupoDiasCompletos.includes(tipoOriginal)) opcionesPermitidas = ['falta_injustificada', 'falta_justificada', 'permiso_con_goce', 'permiso_sin_goce', 'vacaciones', 'suspension', 'incapacidad'];
+            else if (grupoParciales.includes(tipoOriginal)) opcionesPermitidas = ['retardo_injustificado', 'retardo_justificado', 'permiso_con_goce', 'permiso_sin_goce'];
+            else if (grupoBancoHoras.includes(tipoOriginal)) opcionesPermitidas = [tipoOriginal]; // Estos no se pueden cambiar a otro tipo                  
             
             // Ocultar las opciones que no pertenecen grupo permitido
             Array.from(document.getElementById('incTipo').options).forEach(opt => {
-                if (opt.value === "") return; // Dejamos el "Seleccione..."
-                
+                if (opt.value === "") return;                 
                 if (opcionesPermitidas.includes(opt.value)) {
                     opt.hidden = false;
                     opt.disabled = false;
@@ -2634,8 +2691,6 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("Ocurrió un error al cargar los datos de la incidencia.");
         }
     };
-
-    configurarBuscador('buscadorIncidencias', 'tablaIncidenciasBody');
 
     // ============================================
     // G. ELIMINAR INCIDENCIA (Delete con Reversión Automática)
@@ -2708,6 +2763,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
+            // --- REVERTIR GANANCIA DE HORA EXTRA ---
+            else if (inc.tipoIncidencia === 'hora_extra') {
+                // Le restamos las horas que se le habían regalado por error
+                await db.collection('empleados').doc(inc.empleadoID).update({
+                    saldoHorasExtra: firebase.firestore.FieldValue.increment(-(inc.horasAfectadas || 0))
+                });
+            }
+
 
             // 3. Eliminar el documento de Firestore
             await db.collection('incidencias').doc(id).delete();
@@ -2820,7 +2883,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let monitorSnapshotUnsubscribe = null; // Variable para apagar el escuchador de Firebase    
 
-    // --- FUNCIÓN PRINCIPAL: Cargar el Monitor ---
+    // --- FUNCION PRINCIPAL: Cargar el Monitor ---
     window.cargarMonitorDiario = async function(fechaSeleccionadaStr = null) {
         if (!tablaMonitorBody) return;
 
@@ -2865,7 +2928,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (monitorSnapshotUnsubscribe) {
             monitorSnapshotUnsubscribe();
         }
-
+        
         // 4. Encender el nuevo escuchador para la fecha seleccionada
         monitorSnapshotUnsubscribe = db.collection('registrosAsistencia')
             .where('fechaHora', '>=', firebase.firestore.Timestamp.fromDate(inicioDia))
@@ -2873,12 +2936,22 @@ document.addEventListener('DOMContentLoaded', () => {
             .orderBy('fechaHora', 'asc')
             .onSnapshot((snapshot) => {
                 
-                Object.keys(empleadosData).forEach(id => empleadosData[id].escaneos = []);
+                Object.keys(empleadosData).forEach(id => {
+                    empleadosData[id].escaneos = [];
+                    empleadosData[id].ultimoEscaneoEsManual = false; 
+                });
 
                 snapshot.forEach(doc => {
                     const registro = doc.data();
                     if (empleadosData[registro.empleadoID]) {
                         empleadosData[registro.empleadoID].escaneos.push(registro.fechaHora.toDate());
+                        
+                        // Si el registro fue hecho a mano, encendemos la bandera
+                        if (registro.fuente === 'registro_manual') {
+                            empleadosData[registro.empleadoID].ultimoEscaneoEsManual = true;
+                        } else {
+                            empleadosData[registro.empleadoID].ultimoEscaneoEsManual = false;
+                        }
                     }
                 });
 
@@ -2890,13 +2963,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 empleadosArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
                 empleadosArray.forEach(emp => {
-                    // Ignorar si la fecha del monitor es anterior a su contratación
                     const fechaIngresoEmp = new Date(emp.fechaIngreso + "T00:00:00");
                     if (fechaMonitor < fechaIngresoEmp) return; 
 
                     const horarioHoy = (emp.horario && emp.horario[diaActualStr]) ? emp.horario[diaActualStr] : null;
                     
-                    // Si no trabaja hoy y no tiene escaneos, lo ignoramos en el monitor
                     if (!horarioHoy && emp.escaneos.length === 0) return;
 
                     const tr = document.createElement('tr');
@@ -2918,7 +2989,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     htmlEscaneos += '</ul>';
 
                     let claseEstatus = 'etq-gris';
-                    let textoEstatus = 'No ha registrado asistencia';
+                    let textoEstatus = 'No ha llegado';
                     const numEscaneos = emp.escaneos.length;
                     
                     if (numEscaneos === 1) {
@@ -2928,19 +2999,33 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (emp.tipoJornada === 'continua_sin_descanso' || (horarioHoy && horarioHoy.omitirDescanso)) {
                             claseEstatus = 'etq-azul';
                             textoEstatus = 'Turno completado';
+                        } else if (emp.ultimoEscaneoEsManual) {
+                            claseEstatus = 'etq-azul';
+                            textoEstatus = 'Turno completado (Salida Manual)';
                         } else {
-                            claseEstatus = 'etq-naranja';
-                            textoEstatus = 'En descanso';
+                            if (horarioHoy && horarioHoy.salida) {
+                                const [sH, sM] = horarioHoy.salida.split(':').map(Number);
+                                const finTurnoDate = new Date(fechaMonitor.getFullYear(), fechaMonitor.getMonth(), fechaMonitor.getDate(), sH, sM, 0);
+                                if (ahora > finTurnoDate) {
+                                    claseEstatus = 'etq-azul';
+                                    textoEstatus = 'Turno completado (Faltó escaneo de descanso)';
+                                } else {
+                                    claseEstatus = 'etq-naranja';
+                                    textoEstatus = 'En descanso';
+                                }
+                            } else {
+                                claseEstatus = 'etq-naranja';
+                                textoEstatus = 'En descanso';
+                            }
                         }
                     } else if (numEscaneos === 3) {
                         claseEstatus = 'etq-verde';
-                        textoEstatus = 'En turno';
+                        textoEstatus = 'Regresó de descanso';
                     } else if (numEscaneos >= 4) {
                         claseEstatus = 'etq-azul';
                         textoEstatus = 'Turno completado';
                     }
 
-                    // Botón por defecto (Editar incidencia manual)
                     let botonAccion = `
                         <button class="btn-icon" title="Registrar Incidencia Manual">
                             <img src="recursos/icono-editar.svg" alt="Registrar">
@@ -2952,20 +3037,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         const [salHora, salMin] = horarioHoy.salida.split(':').map(Number);
                         const horaSalidaDate = new Date(fechaMonitor.getFullYear(), fechaMonitor.getMonth(), fechaMonitor.getDate(), salHora, salMin, 0);
                         
-                        // Si la hora REAL actual ya superó la hora de salida de ese día
                         if (ahora > horaSalidaDate) {
                             if (numEscaneos === 0) {
                                 claseEstatus = 'etq-rojo';
                                 textoEstatus = 'Falta Injustificada';
-                                // Disparamos la creación en base de datos
                                 window.registrarFaltaAutomatica(emp, horarioHoy, fechaMonitor);
                             } else if (numEscaneos === 1 || numEscaneos === 3) {
                                 claseEstatus = 'etq-rojo';
                                 textoEstatus = 'Falta registro de salida';
                                 
-                                // RN-53: Cambiamos el botón para permitir el registro manual de salida
+                                // Pasamos la hora oficial al modal para poder calcular la salida anticipada
                                 botonAccion = `
-                                    <button class="btn-secundario btn-auto btn-sm" onclick="abrirModalSalidaManual('${emp.id}', '${emp.nombre}', '${fechaSeleccionadaStr}')">
+                                    <button class="btn-secundario btn-auto btn-sm" onclick="abrirModalSalidaManual('${emp.id}', '${emp.nombre}', '${fechaSeleccionadaStr}', '${horarioHoy.salida}')">
                                         Registrar Salida
                                     </button>
                                 `;
@@ -2989,8 +3072,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }, (error) => {
                 console.error("Error en el monitor:", error);
             });
-    };
-    
+    };    
 
     // Evento para cuando la Directora cambia la fecha en el input
     if (inputFechaMonitor) {
@@ -3007,50 +3089,86 @@ document.addEventListener('DOMContentLoaded', () => {
     // 20. REGISTRO MANUAL DE SALIDA 
     // ============================================
     let empleadoSalidaManualID = null;
+    let nombreSalidaManualGlobal = null;
     let fechaSalidaManual = null;
+    let horaSalidaOficialGlobal = null;
 
-    window.abrirModalSalidaManual = function(idEmpleado, nombreEmpleado, fechaStr) {
+    window.abrirModalSalidaManual = function(idEmpleado, nombreEmpleado, fechaStr, horaOficial) {
         empleadoSalidaManualID = idEmpleado;
+        nombreSalidaManualGlobal = nombreEmpleado;
         fechaSalidaManual = fechaStr;
+        horaSalidaOficialGlobal = horaOficial;
+
         document.getElementById('nombreSalidaManual').textContent = nombreEmpleado;
         document.getElementById('modalSalidaManual').classList.remove('hidden');
     };
 
-    document.getElementById('btnCerrarModalSalida')?.addEventListener('click', () => {
-        document.getElementById('modalSalidaManual').classList.add('hidden');
-        document.getElementById('formSalidaManual').reset();
-    });
-
-    document.getElementById('formSalidaManual')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const horaInput = document.getElementById('horaSalidaManual').value;
-        const btnSubmit = e.target.querySelector('button[type="submit"]');
-        
-        btnSubmit.disabled = true;
-        btnSubmit.textContent = "Registrando...";
-
-        try {
-            // Construimos el Timestamp exacto combinando la fecha del monitor y la hora del input
-            const fechaCompleta = new Date(`${fechaSalidaManual}T${horaInput}:00`);
-
-            await db.collection('registrosAsistencia').add({
-                empleadoID: empleadoSalidaManualID,
-                fechaHora: firebase.firestore.Timestamp.fromDate(fechaCompleta),
-                tipoEvento: 'registro',
-                fuente: 'registro_manual',
-                registradoPor: auth.currentUser.email
-            });
-
-            alert("Salida registrada exitosamente.");
-            document.getElementById('btnCerrarModalSalida').click();
+    const formSalidaManual = document.getElementById('formSalidaManual');
+    if (formSalidaManual) {
+        formSalidaManual.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const horaInput = document.getElementById('horaSalidaManual').value;
+            const btnSubmit = e.target.querySelector('button[type="submit"]');
             
-        } catch (error) {
-            console.error("Error al registrar salida manual:", error);
-            alert("Ocurrió un error al guardar el registro.");
-        } finally {
-            btnSubmit.disabled = false;
-            btnSubmit.textContent = "Registrar Salida";
-        }
-    });
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = "Registrando...";
 
+            try {
+                const fechaCompleta = new Date(`${fechaSalidaManual}T${horaInput}:00`);
+                
+                // ¡LA SOLUCIÓN AL ERROR 400! Doble protección para el correo
+                const usuarioActual = firebase.auth().currentUser;
+                const correoAdmin = (usuarioActual && usuarioActual.email) ? usuarioActual.email : document.getElementById('userNameDisplay').textContent;
+
+                // 1. AUDITORÍA: Verificar si la salida manual es anticipada
+                if (horaSalidaOficialGlobal) {
+                    const [salHora, salMin] = horaSalidaOficialGlobal.split(':').map(Number);
+                    const horaOficialDate = new Date(`${fechaSalidaManual}T${horaSalidaOficialGlobal}:00`);
+                    
+                    if (fechaCompleta < horaOficialDate) {
+                        const diffMilisegundos = horaOficialDate - fechaCompleta;
+                        const minutosAnticipados = Math.floor(diffMilisegundos / (1000 * 60));
+
+                        if (minutosAnticipados > 0) {
+                            await db.collection('incidencias').add({
+                                empleadoID: empleadoSalidaManualID,
+                                empleadoNombre: nombreSalidaManualGlobal,
+                                tipoIncidencia: 'salida_anticipada',
+                                fechaInicio: firebase.firestore.Timestamp.fromDate(fechaCompleta),
+                                horasAfectadas: minutosAnticipados,
+                                autorizantes: correoAdmin, // Usamos la variable protegida
+                                motivo: `Salida manual registrada temprano. Se retiró ${formatearMinutos(minutosAnticipados)} antes de su hora oficial (${horaSalidaOficialGlobal}).`,
+                                estatus: 'aprobada', 
+                                fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
+                                registradoPor: correoAdmin // Usamos la variable protegida
+                            });
+                        }
+                    }
+                }
+
+                // 2. Guardar el registro de asistencia
+                await db.collection('registrosAsistencia').add({
+                    empleadoID: empleadoSalidaManualID,
+                    fechaHora: firebase.firestore.Timestamp.fromDate(fechaCompleta),
+                    tipoEvento: 'registro',
+                    fuente: 'registro_manual',
+                    registradoPor: correoAdmin 
+                });
+
+                alert("Salida registrada exitosamente.");
+
+                document.getElementById('modalSalidaManual').classList.add('hidden');
+                document.getElementById('formSalidaManual').reset();
+                
+            } catch (error) {
+                console.error("Error al registrar salida manual:", error);
+                alert("Ocurrió un error al guardar el registro.");
+            } finally {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = "Registrar Salida";
+            }
+        });
+    }
+
+  //--
 });
