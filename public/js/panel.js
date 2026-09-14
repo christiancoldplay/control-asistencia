@@ -2595,6 +2595,46 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ============================================
+    // LOGICA DE UX: BLOQUEO DE CAMPOS PARA PERMISOS EN EDICIÓN
+    // ============================================
+    const inputTipoIncidencia = document.getElementById('incTipo');
+    if (inputTipoIncidencia) {
+        inputTipoIncidencia.addEventListener('change', (e) => {
+            // Solo aplicamos este candado si estamos en MODO EDICION
+            if (incidenciaEditandoID) {
+                const tipo = e.target.value;
+                const incHoras = document.getElementById('incHoras');
+                const incMinutos = document.getElementById('incMinutos');
+                const incFechaFin = document.getElementById('incFechaFin');
+                
+                // Si elige un permiso, bloqueamos el tiempo y la fecha fin
+                if (tipo === 'permiso_con_goce' || tipo === 'permiso_sin_goce') {
+                    incHoras.readOnly = true;
+                    incHoras.classList.add('input-bloqueado');
+                    
+                    incMinutos.readOnly = true;
+                    incMinutos.classList.add('input-bloqueado');
+                    
+                    incFechaFin.readOnly = true;
+                    incFechaFin.disabled = true;
+                    incFechaFin.classList.add('input-bloqueado');
+                } else {
+                    // Si regresa a retardo o falta, desbloqueamos
+                    incHoras.readOnly = false;
+                    incHoras.classList.remove('input-bloqueado');
+                    
+                    incMinutos.readOnly = false;
+                    incMinutos.classList.remove('input-bloqueado');
+                    
+                    incFechaFin.readOnly = false;
+                    incFechaFin.disabled = false;
+                    incFechaFin.classList.remove('input-bloqueado');
+                }
+            }
+        });
+    }
+
     // -- F. Editar Incidencia (Cargar datos al formulario) --
     window.editarIncidencia = async function(id) {
         try {
@@ -2680,6 +2720,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 actualizarTextoCheckboxBanco(); 
             }
 
+            // Disparar el evento 'change' para que aplique el bloqueo visual automáticamente al abrir
+            document.getElementById('incTipo').dispatchEvent(new Event('change'));
             document.getElementById('tituloFormIncidencia').textContent = "Revisar / Editar Incidencia";
             formRegistroIncidencia.querySelector('button[type="submit"]').textContent = "Actualizar Incidencia";
             
