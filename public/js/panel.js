@@ -1490,7 +1490,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         // calcular la deuda real actual
                         let minsAfectadosDeuda = minsAfectadosOriginales;
                         if (inc.estatus === 'compensada_totalmente') {
-                            minsAfectadosDeuda = 0;
+                            minsAfectadosDeuda = 0; // ya pago, la deuda es 0
                         } else if (inc.estatus === 'compensada_parcialmente' || inc.estatus === 'pendiente_de_compensar') {
                             minsAfectadosDeuda = inc.saldoPendiente !== undefined ? inc.saldoPendiente : minsAfectadosOriginales;
                         }
@@ -1514,7 +1514,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             reporteData[empID].permisos += diasIncidencia;
                         }
 
-                        const tiposResta = ['falta_injustificada', 'retardo_injustificado', 'permiso_sin_goce', 'salida_anticipada'];
+                        const tiposResta = ['falta_injustificada', 'retardo_injustificado', 'permiso_sin_goce', 'salida_anticipada', 'suspension', 'incapacidad'];
                         const tiposSuma = ['recuperacion_horas', 'compensacion_hora_extra'];
                         
                         if (tiposResta.includes(tipo)) {
@@ -1523,7 +1523,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             // restamos del tiempo laborado el total original (la recuperacion lo sumara despues)
                             reporteData[empID].minutosLaborados -= minsAfectadosOriginales;
                         } else if (tiposSuma.includes(tipo)) {
-                            reporteData[empID].minutosLaborados += minsAfectadosOriginales;
+                            // solo sumamos a las horas laboradas el tiempo que pago a la deuda
+                            // el excedente se ignora en este reporte, porque ya se fue al saldoHorasExtra
+                            const tiempoRealmentePagado = inc.tiempoCompensado !== undefined ? inc.tiempoCompensado : minsAfectadosOriginales;
+                            reporteData[empID].minutosLaborados += tiempoRealmentePagado;
                         }
                     }
                 });
@@ -1649,7 +1652,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let totalMinutosAfectadosModal = 0;
 
                 // Definimos qué tipos realmente afectan el tiempo para el resumen del modal
-                const tiposRestaModal = ['falta_injustificada', 'retardo_injustificado', 'permiso_sin_goce', 'salida_anticipada'];
+                const tiposRestaModal = ['falta_injustificada', 'retardo_injustificado', 'permiso_sin_goce', 'salida_anticipada', 'suspension', 'incapacidad'];
 
                 // recorremos cada incidencia encontrada en la consulta    
                 snapshotIncidencias.forEach(doc => {
@@ -2011,8 +2014,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let incidenciaEditandoID = null;
     let estatusIncidenciaOriginal = null;
     let horasAfectadasOriginales = 0; // para saber si le cambiaron el tiempo al editar
+    let saldoPendienteOriginal = null; // Guarda la deuda real si ya hubo pagos parciales
 
-    // --- A. LIMPIAR FORMULARIO ---
+    // --- LIMPIAR FORMULARIO DE INCIDENCIAS ---
     function limpiarFormularioIncidencia() {
         formRegistroIncidencia.reset();
         incidenciaEditandoID = null;
@@ -2023,24 +2027,42 @@ document.addEventListener('DOMContentLoaded', () => {
         const cajaRecuperacionHoras = document.getElementById('cajaRecuperacionHoras');
         if (cajaBancoHoras) cajaBancoHoras.classList.add('hidden');
         if (cajaRecuperacionHoras) cajaRecuperacionHoras.classList.add('hidden');
+
+        // Restaurar visibilidad de los grupos de tiempo
+        const grupoEstandar = document.getElementById('grupoDuracionEstandar');
+        const grupoRecuperacion = document.getElementById('grupoHorarioRecuperacion');
+        if (grupoEstandar) grupoEstandar.classList.remove('hidden');
+        if (grupoRecuperacion) grupoRecuperacion.classList.add('hidden');
         
-        // DESBLOQUEAR CAMPOS PARA CREACIÓN NUEVA
+        // Desbloquear todos los campos para creacion nueva
         const incEmpleado = document.getElementById('incEmpleado');
         const incFechaInicio = document.getElementById('incFechaInicio');
-        //const incFechaFin = document.getElementById('incFechaFin');
-        //const incHoras = document.getElementById('incHoras');
-        //const incMinutos = document.getElementById('incMinutos');
+        const incFechaFin = document.getElementById('incFechaFin');
+        const incHoras = document.getElementById('incHoras');
+        const incMinutos = document.getElementById('incMinutos');
+        const incHoraInicioRec = document.getElementById('incHoraInicioRec');
+        const incHoraFinRec = document.getElementById('incHoraFinRec');
+        const incIncidenciaVinculada = document.getElementById('incIncidenciaVinculada');
 
         incEmpleado.disabled = false;
-        incFechaInicio.readOnly = false;
-        //incFechaFin.readOnly = false;
-        //incHoras.readOnly = false;
-        //incMinutos.readOnly = false;
 
+        incFechaInicio.disabled = false;
         incFechaInicio.classList.remove('input-bloqueado');
-        // incFechaFin.classList.remove('input-bloqueado');
-        // incHoras.classList.remove('input-bloqueado');
-        // incMinutos.classList.remove('input-bloqueado');        
+
+        incFechaFin.disabled = false;
+        incFechaFin.classList.remove('input-bloqueado');
+
+        incHoras.readOnly = false;
+        incHoras.required = true;
+        incHoras.classList.remove('input-bloqueado');
+        
+        incMinutos.readOnly = false;
+        incMinutos.required = true;
+        incMinutos.classList.remove('input-bloqueado');        
+        
+        if (incHoraInicioRec) incHoraInicioRec.required = false;
+        if (incHoraFinRec) incHoraFinRec.required = false;
+        if (incIncidenciaVinculada) incIncidenciaVinculada.required = false;
 
         // Mostrar todas las opciones del select de tipos
         Array.from(document.getElementById('incTipo').options).forEach(opt => {
@@ -2061,7 +2083,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 selectIncEmpleado.innerHTML = '<option value="">Seleccione un empleado...</option>';
                 snapshot.forEach(doc => {
                     const emp = doc.data();
-                    selectIncEmpleado.innerHTML += `<option value="${doc.id}" data-nombre="${emp.nombre}">${emp.nombre} (${emp.codigo})</option>`;
+                    selectIncEmpleado.innerHTML += `<option value="${doc.id}" data-nombre="${emp.nombre}" data-ingreso="${emp.fechaIngreso}">${emp.nombre} (${emp.codigo})</option>`;
                 });
             } catch (error) {
                 console.error("Error al cargar empleados:", error);
@@ -2079,8 +2101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- C. LÓGICA VISUAL: BANCO DE HORAS Y UX ---
-    
+    // --- C. LÓGICA VISUAL: BANCO DE HORAS Y UX ---    
     // 1. Cambiar texto del checkbox de deuda
     function actualizarTextoCheckboxBanco() {
         if (incAutorizarRecuperacion.checked) {
@@ -2190,29 +2211,79 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- LOGICA VISUAL PARA ALTERNAR INPUTS DE TIEMPO ---
+    // --- LOGICA VISUAL PARA ALTERNAR INPUTS DE TIEMPO --- 
     // Oculta los inputs de "Horas/Minutos" y muestra los de "Hora Inicio/Fin" si es recuperación
     if (selectTipoIncidencia) {
         selectTipoIncidencia.addEventListener('change', (e) => {
             const tipo = e.target.value;
             const grupoEstandar = document.getElementById('grupoDuracionEstandar');
             const grupoRecuperacion = document.getElementById('grupoHorarioRecuperacion');
+            const incHoras = document.getElementById('incHoras');
+            const incMinutos = document.getElementById('incMinutos');
+            const incFechaFin = document.getElementById('incFechaFin');
+            const incHoraInicioRec = document.getElementById('incHoraInicioRec');
+            const incHoraFinRec = document.getElementById('incHoraFinRec');
+
+            // Si estamos editando, abortamos esta función inmediatamente.
+            if (incidenciaEditandoID) {
+                return; 
+            }
+
+            // --- MODO CREACION ---
             
+            // Resetear estados por defecto (Todo visible y requerido según el estándar)
+            grupoEstandar.classList.remove('hidden');
+            grupoRecuperacion.classList.add('hidden');
+            
+            incHoras.readOnly = false;
+            incHoras.required = true; 
+            incHoras.classList.remove('input-bloqueado');
+            
+            incMinutos.readOnly = false;
+            incMinutos.required = true; 
+            incMinutos.classList.remove('input-bloqueado');
+            
+            incFechaFin.disabled = false;
+            incFechaFin.classList.remove('input-bloqueado');
+
+            if (incHoraInicioRec) incHoraInicioRec.required = false;
+            if (incHoraFinRec) incHoraFinRec.required = false;
+
+            // Aplicar reglas segun el tipo elegido
             if (tipo === 'recuperacion_horas') {
                 grupoEstandar.classList.add('hidden');
                 grupoRecuperacion.classList.remove('hidden');
-                document.getElementById('incHoras').required = false;
-                document.getElementById('incMinutos').required = false;
-                document.getElementById('incHoraInicioRec').required = true;
-                document.getElementById('incHoraFinRec').required = true;
-            } else {
-                grupoEstandar.classList.remove('hidden');
-                grupoRecuperacion.classList.add('hidden');
-                document.getElementById('incHoras').required = true;
-                document.getElementById('incMinutos').required = true;
-                document.getElementById('incHoraInicioRec').required = false;
-                document.getElementById('incHoraFinRec').required = false;
-            }
+                
+                // Hacemos obligatorios los inputs de recuperación
+                if (incHoraInicioRec) incHoraInicioRec.required = true;
+                if (incHoraFinRec) incHoraFinRec.required = true;
+                
+                incHoras.required = false;
+                incMinutos.required = false;
+
+            } else if (tipo === 'vacaciones' || tipo === 'incapacidad' || tipo === 'suspension') {
+                // Bloqueamos horas/minutos, dejamos fechas libres (la fecha fin es opcional)
+                incHoras.readOnly = true;
+                incMinutos.readOnly = true;
+                
+                incHoras.required = false;
+                incMinutos.required = false;
+                
+                incHoras.classList.add('input-bloqueado');
+                incMinutos.classList.add('input-bloqueado');
+                incHoras.value = '';
+                incMinutos.value = '';
+                
+            } else if (['retardo_justificado', 'retardo_injustificado', 'salida_anticipada', 'hora_extra', 'compensacion_hora_extra'].includes(tipo)) {
+                // Bloqueamos fecha fin porque son incidencias de un solo dia
+                incFechaFin.disabled = true;
+                incFechaFin.value = '';
+                incFechaFin.classList.add('input-bloqueado');
+                
+                // Aseguramos que horas y minutos sigan siendo obligatorios
+                incHoras.required = true;
+                incMinutos.required = true;
+            }      
         });
     }
 
@@ -2226,17 +2297,43 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!empleadoID) return "Selecciona un empleado.";
         if (!tipoIncidencia) return "Selecciona un tipo de incidencia.";
         if (!fechaInicio) return "La Fecha de Inicio es obligatoria.";
-        if (!motivo || motivo.length < 5) return "El Motivo es obligatorio y debe ser claro.";
+        if (!motivo || motivo.length < 5) return "Describa el motivo de la incidencia.";
+
+        // Validacion de Antigüedad para Vacaciones
+        if (tipoIncidencia === 'vacaciones') {
+            const opcionSeleccionada = selectIncEmpleado.options[selectIncEmpleado.selectedIndex];
+            const fechaIngresoStr = opcionSeleccionada.getAttribute('data-ingreso');
+
+            if (!fechaIngresoStr || fechaIngresoStr === "undefined") return "Error de sistema: No se pudo verificar la antigüedad del empleado.";
+
+            const [year, month, day] = fechaIngresoStr.split('-').map(Number);
+            const fechaIngreso = new Date(year, month -1, day);
+            const fechaActual = new Date();
+
+            // Calculo de 1 año desde la fecha de ingreso
+            const fechaUnAnoDespues = new Date(fechaIngreso);
+            fechaUnAnoDespues.setFullYear(fechaUnAnoDespues.getFullYear() + 1);
+                
+            if (fechaActual < fechaUnAnoDespues) {
+                return "El empleado no cumple con el requisito de 1 año de antigüedad para solicitar vacaciones.";
+            }            
+        }
 
         // --- Validacion dinamica del tiempo según el tipo de incidencia ---
+        const tiposDiasCompletos = ['vacaciones', 'incapacidad', 'suspension'];
         let tiempoValido = false;
-        if (tipoIncidencia === 'recuperacion_horas') {
+        
+        if (tiposDiasCompletos.includes(tipoIncidencia)) {
+            // si es de dias completos, el tiempo es valido (no requiere especificar horas)
+            tiempoValido = true;
+        } else if (tipoIncidencia === 'recuperacion_horas') {
             const inicioRec = document.getElementById('incHoraInicioRec').value;
             const finRec = document.getElementById('incHoraFinRec').value;
             if (!inicioRec || !finRec) return "Las horas de inicio y fin son obligatorias para la recuperación.";
             if (inicioRec >= finRec) return "La hora de fin debe ser mayor a la hora de inicio.";
             tiempoValido = true;
         } else {
+            // para retardos, faltas y horas extra, si exigimos que las horas sean mayor a 0
             const horas = parseInt(document.getElementById('incHoras').value) || 0;
             const minutos = parseInt(document.getElementById('incMinutos').value) || 0;
             if (horas > 0 || minutos > 0) tiempoValido = true;
@@ -2244,16 +2341,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!tiempoValido) return "El tiempo afectado debe ser mayor a 0.";
 
-        const tiposConFechaFin = ['vacaciones', 'incapacidad'];
+        // validacion de fecha fin (opcional)
         const fechaFinVal = document.getElementById('incFechaFin').value;
-
-        if (tiposConFechaFin.includes(tipoIncidencia) && !fechaFinVal) {
-            return "Este tipo de incidencia requiere una Fecha de Fin.";
-        }
+        // no se exige que la fecha fin sea obligatoria. Si la ponen debe ser logica.
         if (fechaFinVal && new Date(fechaFinVal) < new Date(fechaInicio)) {
             return "La Fecha de Fin no puede ser anterior a la Fecha de Inicio.";
-        }
-        return null; 
+        }       
+
+        return null; // sin errores 
     }
     
     if (formRegistroIncidencia) {
@@ -2322,12 +2417,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 let estatusFinal = 'aprobada'; 
 
                 if (incidenciaEditandoID) {
-                    // --- MODO EDICIÓN ---
+                    // --- MODO EDICION ---
                     if (tiposJustificados.includes(tipoIncidencia)) {
                         estatusFinal = 'aprobada';
+                        //incidenciaData.saldoPendiente = firebase.firestore.FieldValue.delete();
                     } else if (incAutorizarRecuperacion && incAutorizarRecuperacion.checked){
                         estatusFinal = 'pendiente_de_compensar';
-                        incidenciaData.saldoPendiente = horasAfectadas;
+                        // si ya tenia un saldo pendiente (compensada parcialmente), respetamos ese valor
+                        // sino respetamos las horas afectadas originales
+                        incidenciaData.saldoPendiente = (saldoPendienteOriginal !== null) ? saldoPendienteOriginal : horasAfectadas;
                     } else {
                         estatusFinal = 'revisada';
                         incidenciaData.saldoPendiente = firebase.firestore.FieldValue.delete();
@@ -2336,34 +2434,42 @@ document.addEventListener('DOMContentLoaded', () => {
                     incidenciaData.estatus = estatusFinal;
                     await db.collection('incidencias').doc(incidenciaEditandoID).update(incidenciaData);
 
-                    // Actualizar saldo deudor si cambio la autorizacion
-                    if (estatusIncidenciaOriginal !== 'pendiente_de_compensar' && estatusFinal === 'pendiente_de_compensar') {
-                        await db.collection('empleados').doc(empleadoID).update({
-                            saldoPendiente: firebase.firestore.FieldValue.increment(horasAfectadas)
+                    // Calculamos cuanta deuda tenia esta incidencia antes de editarla
+                    let deudaActivaVieja = 0;
+
+                    if (estatusIncidenciaOriginal === 'pendiente_de_compensar' || estatusIncidenciaOriginal === 'compensada_parcialmente') {
+                        deudaActivaVieja = (saldoPendienteOriginal !== null) ? saldoPendienteOriginal : horasAfectadasOriginales;
+                    }
+
+                    // Calculamos cuánta deuda tiene esta incidencia AHORA
+                    let deudaActivaNueva = 0;
+                    if (estatusFinal === 'pendiente_de_compensar' || estatusFinal === 'compensada_parcialmente') {
+                        deudaActivaNueva = incidenciaData.saldoPendiente;
+                    }
+
+                    // Sacamos la diferencia y se la aplicamos al empleado
+                    const diferenciaDeuda = deudaActivaNueva - deudaActivaVieja;
+                    if (diferenciaDeuda !== 0) {
+                        await db.collection('empleados').doc(empleadoID).update({ 
+                            saldoPendiente: firebase.firestore.FieldValue.increment(diferenciaDeuda) 
                         });
-                    } else if (estatusIncidenciaOriginal === 'pendiente_de_compensar' && estatusFinal !== 'pendiente_de_compensar'){
-                        await db.collection('empleados').doc(empleadoID).update({
-                            saldoPendiente: firebase.firestore.FieldValue.increment(-horasAfectadasOriginales)
-                        });
-                    } else if (estatusIncidenciaOriginal === 'pendiente_de_compensar' && estatusFinal === 'pendiente_de_compensar') {
-                        // Si solo le cambiaron la cantidad de horas a la deuda
-                        const diferencia = horasAfectadas - horasAfectadasOriginales;
-                        if (diferencia !== 0) await db.collection('empleados').doc(empleadoID).update({ saldoPendiente: firebase.firestore.FieldValue.increment(diferencia) });
-                    
                     }
 
                     // Actualizar saldo a favor si editaron una Hora Extra
                     if (tipoIncidencia === 'hora_extra') {
-                        const diferencia = horasAfectadas - horasAfectadasOriginales;
-                        if (diferencia !== 0) {
-                            await db.collection('empleados').doc(empleadoID).update({ saldoHorasExtra: firebase.firestore.FieldValue.increment(diferencia) });
+                        const diferenciaExtra = horasAfectadas - horasAfectadasOriginales;
+                        if (diferenciaExtra !== 0) {
+                            await db.collection('empleados').doc(empleadoID).update({ 
+                                saldoHorasExtra: firebase.firestore.FieldValue.increment(diferenciaExtra) 
+                            });
                         }
                     }
 
                     alert("Incidencia actualizada exitosamente.");
 
                 } else {
-                    // -- MODO CREACION --
+
+                     // MODO CREACIÓN
                     incidenciaData.estatus = 'aprobada'; 
                     incidenciaData.fechaCreacion = firebase.firestore.FieldValue.serverTimestamp();
                     
@@ -2371,7 +2477,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const correoAdmin = (usuarioActual && usuarioActual.email) ? usuarioActual.email : document.getElementById('userNameDisplay').textContent;
                     incidenciaData.registradoPor = correoAdmin;
 
-                    // -- LOGICA DE PAGO DE DEUDAS --
+                    // 1. LÓGICA DE PAGO DE DEUDAS
                     if (tipoIncidencia === 'recuperacion_horas' || tipoIncidencia === 'compensacion_hora_extra') {
                         const deudaID = selectIncidenciaVinculada.value;
                         if (deudaID) {
@@ -2393,39 +2499,38 @@ document.addEventListener('DOMContentLoaded', () => {
                                 nuevoEstatusDeuda = 'compensada_parcialmente';
                             }
 
-                            // Actualizar la deuda original
+                            // A. Actualizar la deuda original en Firestore
                             await db.collection('incidencias').doc(deudaID).update({
                                 saldoPendiente: nuevoSaldoPendienteDeuda,
                                 estatus: nuevoEstatusDeuda
                             });
 
-                            // Actualizar perfil del empleado según el tipo de pago
+                            // B. Actualizar perfil del empleado
                             if (tipoIncidencia === 'recuperacion_horas') {
-                                // Trabajó: Paga deuda y guarda el excedente
                                 await db.collection('empleados').doc(empleadoID).update({
                                     saldoPendiente: firebase.firestore.FieldValue.increment(-reduccionDeudaEmpleado),
                                     saldoHorasExtra: firebase.firestore.FieldValue.increment(excedenteParaEmpleado)
                                 });
                             } else if (tipoIncidencia === 'compensacion_hora_extra') {
-                                // Usó sus ahorros: Paga deuda y gasta sus ahorros
                                 await db.collection('empleados').doc(empleadoID).update({
                                     saldoPendiente: firebase.firestore.FieldValue.increment(-reduccionDeudaEmpleado),
                                     saldoHorasExtra: firebase.firestore.FieldValue.increment(-pago)
                                 });
                             }
                             incidenciaData.incidenciaQueCompensa = deudaID;
-                        }
-                    }
 
-                    // -- LOGICA DE GANANCIA DE HORAS EXTRA --
+                            incidenciaData.tiempoCompensado = reduccionDeudaEmpleado;
+                            incidenciaData.tiempoExcedente = excedenteParaEmpleado;
+                        }
+                    } 
+                    // 2. LOGICA DE GANANCIA DE HORAS EXTRA
                     else if (tipoIncidencia === 'hora_extra') {
-                        // Le sumamos el tiempo directamente a la "cuenta de ahorros" del empleado
                         await db.collection('empleados').doc(empleadoID).update({
-                            // sumamos las horas directamente al saldo a favor del empleado
                             saldoHorasExtra: firebase.firestore.FieldValue.increment(horasAfectadas)
                         });
                     }
 
+                    // Guardar la nueva incidencia
                     await db.collection('incidencias').add(incidenciaData);
                     alert("Incidencia registrada exitosamente.");
                 }
@@ -2546,14 +2651,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const nombreEmp = inc.empleadoNombre || 'Empleado Desconocido';
             const idEmp = inc.empleadoID || 'Sin ID';
 
+            // --- LOGICA VISUAL PARA DEUDAS PARCIALES ---
+            let horasTexto = formatearMinutos(inc.horasAfectadas);
+            // Si la incidencia tiene pagos parciales o está pendiente, mostramos cuánto resta realmente
+            if ((inc.estatus === 'compensada_parcialmente' || inc.estatus === 'pendiente_de_compensar') && inc.saldoPendiente !== undefined && inc.saldoPendiente !== inc.horasAfectadas) {
+                horasTexto = `${formatearMinutos(inc.horasAfectadas)}<br><span style="color: var(--color-error); font-size: 11px; font-weight: bold;">(Resta: ${formatearMinutos(inc.saldoPendiente)})</span>`;
+            }
+
             tr.innerHTML = `
                 <td>${fechaTexto}</td>
                 <td>
                     <strong>${nombreEmp}</strong>
                     <span class="texto-secundario">${idEmp}</span>
                 </td>
-                <td style="font-size: 12px;">${tipoTexto}</td>
-                <td>${formatearMinutos(inc.horasAfectadas)}</td>
+                <td style="font-size: 12px;">${tipoTexto}</td>                
+                <td>${horasTexto}</td>
                 <td><span class="estatus-${inc.estatus}">${estatusTexto}</span></td>
                 <td>
                     <button class="btn-icon" onclick="editarIncidencia('${inc.id}')" title="Editar">
@@ -2635,7 +2747,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // -- F. Editar Incidencia (Cargar datos al formulario) --
+    // -- F. Editar Incidencia (Cargar datos al formulario) --    
     window.editarIncidencia = async function(id) {
         try {
             const doc = await db.collection('incidencias').doc(id).get();
@@ -2644,13 +2756,17 @@ document.addEventListener('DOMContentLoaded', () => {
             
             incidenciaEditandoID = id;
             estatusIncidenciaOriginal = inc.estatus;
-            horasAfectadasOriginales = inc.horasAfectadas || 0; // Guardamos las horas viejas
+            
+            horasAfectadasOriginales = inc.horasAfectadas || 0; 
+            
+            // Capturamos el saldo pendiente actual para no borrar los pagos parciales
+            saldoPendienteOriginal = inc.saldoPendiente !== undefined ? inc.saldoPendiente : null;
 
             const snapshot = await db.collection('empleados').where('estatus', '==', 'activo').orderBy('nombre', 'asc').get();
             selectIncEmpleado.innerHTML = '<option value="">Seleccione un empleado...</option>';
             snapshot.forEach(empDoc => {
                 const emp = empDoc.data();
-                selectIncEmpleado.innerHTML += `<option value="${empDoc.id}" data-nombre="${emp.nombre}">${emp.nombre} (${emp.codigo})</option>`;
+                selectIncEmpleado.innerHTML += `<option value="${empDoc.id}" data-nombre="${emp.nombre}" data-ingreso="${emp.fechaIngreso}">${emp.nombre} (${emp.codigo})</option>`;
             });
 
             document.getElementById('incEmpleado').value = inc.empleadoID;
@@ -2664,20 +2780,33 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('incAutorizantes').value = inc.autorizantes || "";
             document.getElementById('incMotivo').value = inc.motivo || "";
 
-            // PROTECCIÓN DE EDICIÓN  ---  
-
-            // 1. Bloquear campos estructurales para evitar corrupción de datos
-            // Bloqueamos solo empleado y fecha (el tiempo si se puede editar)
+            // --- PROTECCION DE EDICION  ---  
+            
+            // Bloquear campos estructurales para evitar corrupción de datos
             const incEmpleadoInput = document.getElementById('incEmpleado');
             const incFechaInicioInput = document.getElementById('incFechaInicio');
+            const incFechaFinInput = document.getElementById('incFechaFin');
+            const incHorasInput = document.getElementById('incHoras');
+            const incMinutosInput = document.getElementById('incMinutos');
 
-            incEmpleadoInput.disabled = true; // bloqueamos el select con disabled:true
-            incFechaInicioInput.readOnly = true;
+            // Bloqueo de empleado
+            incEmpleadoInput.disabled = true;
             
-            // Aplicar clase visual de bloqueo
-            incFechaInicioInput.classList.add('input-bloqueado');   
+            // Bloqueo de fechas 
+            incFechaInicioInput.disabled = true;
+            incFechaInicioInput.classList.add('input-bloqueado');
+
+            incFechaFinInput.disabled = true;
+            incFechaFinInput.classList.add('input-bloqueado'); 
+
+            // Bloqueo de tiempo
+            incHorasInput.readOnly = true;
+            incHorasInput.classList.add('input-bloqueado');
+
+            incMinutosInput.readOnly = true;
+            incMinutosInput.classList.add('input-bloqueado');
             
-            // 2. Filtrar los Tipos de Incidencia permitidos
+            // Filtrar los Tipos de Incidencia permitidos
             const tipoOriginal = inc.tipoIncidencia;
             let opcionesPermitidas = [tipoOriginal]; 
 
@@ -2687,7 +2816,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (grupoDiasCompletos.includes(tipoOriginal)) opcionesPermitidas = ['falta_injustificada', 'falta_justificada', 'permiso_con_goce', 'permiso_sin_goce', 'vacaciones', 'suspension', 'incapacidad'];
             else if (grupoParciales.includes(tipoOriginal)) opcionesPermitidas = ['retardo_injustificado', 'retardo_justificado', 'permiso_con_goce', 'permiso_sin_goce'];
-            else if (grupoBancoHoras.includes(tipoOriginal)) opcionesPermitidas = [tipoOriginal]; // Estos no se pueden cambiar a otro tipo                  
+            else if (grupoBancoHoras.includes(tipoOriginal)) opcionesPermitidas = [tipoOriginal]; 
             
             // Ocultar las opciones que no pertenecen grupo permitido
             Array.from(document.getElementById('incTipo').options).forEach(opt => {
@@ -2712,12 +2841,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('incFechaFin').value = "";
             }
 
-            // Disparar la lógica visual para acomodar la UI según el tipo
+            // Disparar la logica visual para acomodar la UI según el tipo
             cargarDeudasYSaldo();
 
-            if (incAutorizarRecuperacion) {
-                incAutorizarRecuperacion.checked = (inc.estatus === 'pendiente_de_compensar');
-                actualizarTextoCheckboxBanco(); 
+            // --- LOGICA VISUAL DEL CHECKBOX Y TEXTO DE DEUDA ---
+            const tiposNegativos = ['falta_injustificada', 'retardo_injustificado', 'permiso_sin_goce'];
+            // Seleccionamos el párrafo de instrucciones dentro de la caja de recuperación
+            const instruccionBanco = cajaRecuperacionHoras ? cajaRecuperacionHoras.querySelector('.texto-instruccion-banco') : null;
+
+            if (tiposNegativos.includes(inc.tipoIncidencia)) {
+                if (cajaRecuperacionHoras) cajaRecuperacionHoras.classList.remove('hidden');
+                
+                if (incAutorizarRecuperacion) {
+                    incAutorizarRecuperacion.checked = (inc.estatus === 'pendiente_de_compensar');
+                    actualizarTextoCheckboxBanco(); 
+                }
+                
+                // Mostramos al administrador cual es la deuda real si ya hay pagos parciales
+                if (instruccionBanco) {
+                    if (inc.estatus === 'compensada_parcialmente' && inc.saldoPendiente !== undefined) {
+                        instruccionBanco.innerHTML = `<strong class="alerta-texto">Atención:</strong> Esta incidencia ya tiene pagos registrados. Al autorizar, solo se reactivará el saldo restante de <strong>${formatearMinutos(inc.saldoPendiente)}</strong>.`;
+                    } else {
+                        instruccionBanco.textContent = 'Al autorizar, el estatus cambiará a "Pendiente de Compensar" y las horas se sumarán al saldo deudor del empleado.';
+                    }
+                }
+            } else {
+                if (cajaRecuperacionHoras) cajaRecuperacionHoras.classList.add('hidden');
+                if (incAutorizarRecuperacion) incAutorizarRecuperacion.checked = false;
             }
 
             // Disparar el evento 'change' para que aplique el bloqueo visual automáticamente al abrir
@@ -2754,27 +2904,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            // 2. REVERTIR PAGOS (Ingeniería Inversa para Recuperación o Compensación)
+            // 2. REVERTIR PAGOS (Ingenieria Inversa para Recuperación o Compensacion)
             if (inc.tipoIncidencia === 'recuperacion_horas' || inc.tipoIncidencia === 'compensacion_hora_extra') {
                 if (inc.incidenciaQueCompensa) {
                     const deudaDoc = await db.collection('incidencias').doc(inc.incidenciaQueCompensa).get();
                     
                     if (deudaDoc.exists) {
                         const deuda = deudaDoc.data();
-                        const pago = inc.horasAfectadas || 0;
                         
-                        // A. Matemáticas de reversión con tope máximo
-                        // Sumamos el pago al saldo pendiente, pero NUNCA puede ser mayor a las horas afectadas originales
-                        let nuevoSaldoPendiente = (deuda.saldoPendiente || 0) + pago;
-                        if (nuevoSaldoPendiente > deuda.horasAfectadas) {
-                            nuevoSaldoPendiente = deuda.horasAfectadas;
-                        }
-                        
-                        // Calculamos cuánto se fue a la deuda y cuánto fue excedente
-                        const horasRestauradasADeuda = nuevoSaldoPendiente - (deuda.saldoPendiente || 0);
-                        const excedente = pago - horasRestauradasADeuda;
+                        // Usamos los valores exactos que guardamos al crear el pago
+                        const horasRestauradasADeuda = inc.tiempoCompensado !== undefined ? inc.tiempoCompensado : (inc.horasAfectadas || 0);
+                        const excedente = inc.tiempoExcedente !== undefined ? inc.tiempoExcedente : 0;
 
-                        // B. Restaurar estatus de la deuda original
+                        // Restaurar estatus de la deuda original
+                        const nuevoSaldoPendiente = (deuda.saldoPendiente || 0) + horasRestauradasADeuda;
                         let nuevoEstatusDeuda = 'pendiente_de_compensar';
                         if (nuevoSaldoPendiente < deuda.horasAfectadas && nuevoSaldoPendiente > 0) {
                             nuevoEstatusDeuda = 'compensada_parcialmente';
@@ -2782,24 +2925,22 @@ document.addEventListener('DOMContentLoaded', () => {
                             nuevoEstatusDeuda = 'compensada_totalmente';
                         }
 
-                        // C. Actualizar la incidencia original (Revivir la deuda)
+                        // Actualizar la incidencia original (Revivir la deuda)
                         await db.collection('incidencias').doc(inc.incidenciaQueCompensa).update({
                             saldoPendiente: nuevoSaldoPendiente,
                             estatus: nuevoEstatusDeuda
                         });
 
-                        // D. Revertir saldos en el perfil del empleado
+                        // Revertir saldos en el perfil del empleado
                         if (inc.tipoIncidencia === 'recuperacion_horas') {
-                            // Trabajó para pagar: Le devolvemos la deuda y le quitamos el excedente que se le regaló
                             await db.collection('empleados').doc(inc.empleadoID).update({
                                 saldoPendiente: firebase.firestore.FieldValue.increment(horasRestauradasADeuda),
                                 saldoHorasExtra: firebase.firestore.FieldValue.increment(-excedente)
                             });
                         } else if (inc.tipoIncidencia === 'compensacion_hora_extra') {
-                            // Pagó con ahorros: Le devolvemos la deuda y le regresamos TODOS sus ahorros gastados
                             await db.collection('empleados').doc(inc.empleadoID).update({
                                 saldoPendiente: firebase.firestore.FieldValue.increment(horasRestauradasADeuda),
-                                saldoHorasExtra: firebase.firestore.FieldValue.increment(pago)
+                                saldoHorasExtra: firebase.firestore.FieldValue.increment(inc.horasAfectadas || 0) // Devolvemos todo lo que gastó
                             });
                         }
                     }

@@ -91,19 +91,19 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
-
+    
     // ============================================
     // 4. PROCESAR EL CÓDIGO LEÍDO (Con Retardos Automáticos)
     // ============================================
-     async function onEscaneoExitoso(textoDecodificado) {
+    async function onEscaneoExitoso(textoDecodificado) {
         if (escannerActivo) {
             await escannerActivo.stop();
         }
-
+        
         if (navigator.vibrate) {
             navigator.vibrate(200);
         }
-
+        
         try {
             const docEmpleado = await db.collection('empleados').doc(textoDecodificado).get();
             
@@ -112,16 +112,61 @@ document.addEventListener('DOMContentLoaded', () => {
                 iniciarCamara(); 
                 return;
             }
-
+            
             const emp = docEmpleado.data();
-
+            
             if (emp.estatus !== 'activo') {
                 alert(`El empleado ${emp.nombre} está dado de baja o inactivo.`);
                 iniciarCamara();
                 return;
             }
-
+            
             const ahora = new Date();
+            
+            // --- BLOQUEO POR INCIDENCIAS (VACACIONES, SUSPENSIO O INCAPACIDAD) ---
+            // Buscamos si el empleado tiene vacaciones, suspension o incapacidad el día de hoy
+            const incidenciasBloqueantes = await db.collection('incidencias')
+            .where('empleadoID', '==', textoDecodificado)
+            .where('estatus', '==', 'aprobada')
+            .where('fechaInicio', '<=', firebase.firestore.Timestamp.fromDate(ahora))
+            .get();
+            
+            let estaBloqueado = false;
+            let motivoBloqueo = "";
+            
+            incidenciasBloqueantes.forEach(doc => {
+                const inc = doc.data();
+                const tiposBloqueo = ['vacaciones', 'suspension', 'incapacidad'];
+                
+                if (tiposBloqueo.includes(inc.tipoIncidencia)) {
+                    const inicio = inc.fechaInicio.toDate();
+
+                    if (inc.fechaFin) {
+                        const fin = inc.fechaFin.toDate();
+                        // Asegurarnos de que el fin cubra todo el día (23:59:59)
+                        fin.setHours(23, 59, 59, 999);
+                        if (ahora <= fin) {
+                            estaBloqueado = true;
+                            motivoBloqueo = inc.tipoIncidencia.toUpperCase();
+                        }
+                    } else {
+                        // Si no tiene fecha fin, es de un solo día. 
+                        // Comparamos si 'ahora' es exactamente el mismo día que 'inicio'.
+                        if (ahora.toDateString() === inicio.toDateString()) {
+                            estaBloqueado = true;
+                            motivoBloqueo = inc.tipoIncidencia.toUpperCase();
+                        }
+                    }
+                }
+            });
+
+            if (estaBloqueado) {
+                alert(`ACCESO DENEGADO:\n El empleado tiene un registro activo de ${motivoBloqueo.replace(/_/g, ' ')}.`);
+                iniciarCamara();
+                return; // Detenemos el escaneo, no se registra la asistencia
+            }
+
+            // -- LOGICA DE INCIDENCIAS AUTOMATICAS (Retardos y salidas) --
             const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
             const diaHoyStr = diasSemana[ahora.getDay()];
             const horarioHoy = (emp.horario && emp.horario[diaHoyStr]) ? emp.horario[diaHoyStr] : null;
@@ -137,7 +182,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const numEscaneos = escaneosHoy.size;
 
-            // --- LOGICA DE INCIDENCIAS AUTOMÁTICAS ---
             if (horarioHoy) {
                 // A) EVALUAR ENTRADA (Primer escaneo del día)
                 if (numEscaneos === 0 && horarioHoy.entrada) {
@@ -173,7 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 fechaInicio: firebase.firestore.Timestamp.fromDate(ahora),
                                 horasAfectadas: minutosRetardo, 
                                 autorizantes: 'Sistema Automático',
-                                motivo: `El empleado registró su entrada tarde. Tuvo un retardo de: ${formatearMinutos(minutosRetardo)}. Su hora de entrada oficial es a las: ${horarioHoy.entrada}.`,
+                                motivo: `El empleado registró su entrada tarde. Tuvo un retardo de: ${formatearMinutos(minutosRetardo)}. Su hora de entrada debe ser a las: ${horarioHoy.entrada}.`,
                                 estatus: 'pendiente_de_revision',
                                 saldoPendiente: null,
                                 fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
@@ -202,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 fechaInicio: firebase.firestore.Timestamp.fromDate(ahora),
                                 horasAfectadas: minutosAnticipados, 
                                 autorizantes: 'Sistema Automático',
-                                motivo: `El empleado registró su salida temprano. Se retiró ${formatearMinutos(minutosAnticipados)} antes de su hora oficial (${horarioHoy.salida}).`,
+                                motivo: `El empleado registró su salida temprano. Se retiró ${formatearMinutos(minutosAnticipados)} antes de su hora de salida (${horarioHoy.salida}).`,
                                 estatus: 'pendiente_de_revision',
                                 saldoPendiente: null,
                                 fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
