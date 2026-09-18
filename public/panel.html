@@ -22,6 +22,7 @@
                 <button class="nav-item" data-target="seccion-incidencias">Gestión de Incidencias</button>
                 <button class="nav-item" data-target="seccion-reportes">Reportes y Consultas</button>
                 <button class="nav-item active" data-target="seccion-empleados">Gestión de Empleados</button>
+                <button class="nav-item" data-target="seccion-descansos">Descansos Obligatorios</button>
                 <button class="nav-item" data-target="seccion-usuarios">Gestión de Usuarios</button>
             </nav>
 
@@ -576,7 +577,93 @@
                 </div>
             </section>
 
-            <!-- SECCIÓN 5: GESTION DE USUARIOS -->
+            <!-- SECCION 5: DIAS DE DESCANSO OBLIGATORIO -->
+            <section id="seccion-descansos" class="content-section">
+                <header class="section-header">
+                    <h2>Días de Descanso Obligatorio</h2>
+                </header>
+                
+                <!-- SUB-VISTA A: LISTADO -->
+                <div id="vistaListaDescansos" class="card-container">
+                    <div class="card-header-flex">
+                        <h3>Calendario de Descansos</h3>
+                        <div class="header-acciones">
+                            <button id="btnMostrarFormDescanso" class="btn-primary btn-auto">Registrar Descanso</button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha(s)</th>
+                                    <th>Descripción</th>
+                                    <th>Tipo de Pago</th>
+                                    <th>Aplica a</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaDescansosBody">
+                                <tr>
+                                    <td colspan="5" class="table-empty-state">Cargando descansos...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- SUB-VISTA B: FORMULARIO -->
+                <div id="vistaFormularioDescanso" class="card-container hidden">
+                    <div class="card-header-flex">
+                        <h3>Registrar Día de Descanso</h3>
+                        <button id="btnVolverListaDescansos" class="btn-logout btn-auto m-0">Volver a la lista</button>
+                    </div>
+                    
+                    <form id="formRegistroDescanso" class="admin-form">
+                        <fieldset>
+                            <legend>Configuración del Descanso</legend>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="descFechaInicio">Fecha de Inicio *</label>
+                                    <input type="date" id="descFechaInicio" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="descFechaFin">Fecha de Fin (Opcional)</label>
+                                    <input type="date" id="descFechaFin">
+                                </div>
+                                <div class="form-group">
+                                    <label for="descTipo">Tipo de Pago *</label>
+                                    <select id="descTipo" required>
+                                        <option value="">Seleccione...</option>
+                                        <option value="pagado">Pagado</option>
+                                        <option value="no_pagado">No Pagado</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="descCriterio">Criterio de Aplicación *</label>
+                                    <select id="descCriterio" required>
+                                        <option value="">Seleccione...</option>
+                                        <option value="todos">Todos los empleados</option>
+                                        <option value="antiguedad_mayor_1">Antigüedad mayor o igual a 1 año</option>
+                                        <option value="antiguedad_menor_1">Antigüedad menor a 1 año</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group observaciones-group">
+                                <label for="descDescripcion">Motivo *</label>
+                                <textarea id="descDescripcion" rows="2" required placeholder="Ej. Navidad, etc..."></textarea>
+                            </div>
+                        </fieldset>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary btn-auto">Guardar Descanso</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- SECCION 6: GESTION DE USUARIOS -->
             <section id="seccion-usuarios" class="content-section">
                 <header>
                     <h2>Gestión de Usuarios (Accesos)</h2>    

@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cargarEmpleados();//carga la tabla de empleados
             cargarUsuarios();//carga la tabla de usuarios
             cargarIncidencias();//carga la tabla de incidencias
+            cargarDescansos();//carga la tabla de descansos
         } else { //si no esta autenticado redirige al login (index.html)
             window.location.replace('index.html');
         }
@@ -3352,6 +3353,137 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // ============================================
+    // 21. GESTIÓN DE DÍAS DE DESCANSO OBLIGATORIO
+    // ============================================
+    const vistaListaDescansos = document.getElementById('vistaListaDescansos');
+    const vistaFormularioDescanso = document.getElementById('vistaFormularioDescanso');
+    const btnMostrarFormDescanso = document.getElementById('btnMostrarFormDescanso');
+    const btnVolverListaDescansos = document.getElementById('btnVolverListaDescansos');
+    const formRegistroDescanso = document.getElementById('formRegistroDescanso');
+    const tablaDescansosBody = document.getElementById('tablaDescansosBody');
+
+    // --- A. Sub-navegación ---
+    if (btnMostrarFormDescanso && btnVolverListaDescansos) {
+        btnMostrarFormDescanso.addEventListener('click', () => {
+            formRegistroDescanso.reset();
+            vistaListaDescansos.classList.add('hidden');
+            vistaFormularioDescanso.classList.remove('hidden');
+        });
+
+        btnVolverListaDescansos.addEventListener('click', () => {
+            vistaFormularioDescanso.classList.add('hidden');
+            vistaListaDescansos.classList.remove('hidden');
+        });
+    }
+
+    // --- B. Guardar Descanso en Firestore ---
+    if (formRegistroDescanso) {
+        formRegistroDescanso.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btnSubmit = formRegistroDescanso.querySelector('button[type="submit"]');
+            
+            const fechaInicioStr = document.getElementById('descFechaInicio').value;
+            const fechaFinStr = document.getElementById('descFechaFin').value;
+
+            // Validación de fechas lógicas
+            if (fechaFinStr && new Date(fechaFinStr) < new Date(fechaInicioStr)) {
+                alert("La Fecha de Fin no puede ser anterior a la Fecha de Inicio.");
+                return;
+            }
+
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = "Guardando...";
+
+            try {
+                const descansoData = {
+                    fechaInicio: firebase.firestore.Timestamp.fromDate(new Date(fechaInicioStr + "T00:00:00")),
+                    tipo: document.getElementById('descTipo').value,
+                    criterioAplicacion: document.getElementById('descCriterio').value,
+                    descripcion: document.getElementById('descDescripcion').value.trim(),
+                    fechaRegistro: firebase.firestore.FieldValue.serverTimestamp(),
+                    registradoPor: auth.currentUser.email
+                };
+
+                if (fechaFinStr) {
+                    descansoData.fechaFin = firebase.firestore.Timestamp.fromDate(new Date(fechaFinStr + "T23:59:59"));
+                }
+
+                await db.collection('diasDescansoObligatorio').add(descansoData);
+                
+                alert("Día de descanso registrado exitosamente.");
+                btnVolverListaDescansos.click();
+
+            } catch (error) {
+                console.error("Error al guardar descanso:", error);
+                alert("Ocurrió un error al guardar el registro.");
+            } finally {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = "Guardar Descanso";
+            }
+        });
+    }
+
+    // --- C. Cargar y Mostrar Descansos  ---
+    window.cargarDescansos = function() {
+        if (!tablaDescansosBody) return;
+
+        // Ordenamos por fecha de inicio para ver los más recientes primero
+        db.collection('diasDescansoObligatorio').orderBy('fechaInicio', 'desc').onSnapshot((consulta) => {
+            tablaDescansosBody.innerHTML = ''; 
+
+            if (consulta.empty) {
+                tablaDescansosBody.innerHTML = `<tr><td colspan="5" class="table-empty-state">No hay días de descanso registrados.</td></tr>`;
+                return;
+            }
+
+            consulta.forEach((doc) => {
+                const desc = doc.data();
+                const tr = document.createElement('tr');
+                
+                // Formateo de fechas
+                const fechaInicioObj = desc.fechaInicio.toDate();
+                let fechaTexto = fechaInicioObj.toLocaleDateString('es-MX');
+                if (desc.fechaFin) {
+                    const fechaFinObj = desc.fechaFin.toDate();
+                    fechaTexto += ` al ${fechaFinObj.toLocaleDateString('es-MX')}`;
+                }
+
+                // Formateo de textos para la interfaz
+                const tipoTexto = desc.tipo.replace(/_/g, ' ').toUpperCase();
+                const criterioTexto = desc.criterioAplicacion.replace(/_/g, ' ').toUpperCase();
+
+                tr.innerHTML = `
+                    <td><strong>${fechaTexto}</strong></td>
+                    <td>${desc.descripcion}</td>
+                    <td>${tipoTexto}</td>
+                    <td style="font-size: 12px;">${criterioTexto}</td>
+                    <td>
+                        <button class="btn-icon icon-danger" onclick="eliminarDescanso('${doc.id}')" title="Eliminar">
+                            <img src="recursos/icono-baja.svg" alt="Eliminar">
+                        </button>
+                    </td>
+                `;
+                tablaDescansosBody.appendChild(tr);
+            });
+        }, (error) => {
+            console.error("Error al cargar descansos:", error);
+        });
+    };
+
+    // --- D. Eliminar Descanso ---
+    window.eliminarDescanso = async function(id) {
+        const confirmar = confirm("¿Estás seguro de eliminar este día de descanso?\n\nSi lo eliminas, el sistema dejará de proteger las asistencias de ese día.");
+        if (!confirmar) return;
+
+        try {
+            await db.collection('diasDescansoObligatorio').doc(id).delete();
+        } catch (error) {
+            console.error("Error al eliminar descanso:", error);
+            alert("Ocurrió un error al intentar eliminar el registro.");
+        }
+    };
 
   //--
 });
