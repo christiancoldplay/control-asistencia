@@ -122,6 +122,40 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             const ahora = new Date();
+
+            // --- BLOQUEO POR DIAS DE DESCANSO OBLIGATORIO ---
+            const snapshotDescansos = await db.collection('diasDescansoObligatorio').get();
+            let esDiaFestivo = false;
+            let nombreFestivo = "";
+
+            snapshotDescansos.forEach(doc => {
+                const desc = doc.data();
+                const startDesc = desc.fechaInicio.toDate();
+                startDesc.setHours(0,0,0,0);
+                const endDesc = desc.fechaFin ? desc.fechaFin.toDate() : new Date(startDesc);
+                endDesc.setHours(23,59,59,999);
+                
+                if (ahora >= startDesc && ahora <= endDesc) {
+                    const [y, m, day] = emp.fechaIngreso.split('-').map(Number);
+                    const fechaIngresoObj = new Date(y, m - 1, day);
+                    const unAnoDespues = new Date(fechaIngresoObj);
+                    unAnoDespues.setFullYear(unAnoDespues.getFullYear() + 1);
+                    const tieneUnAno = ahora >= unAnoDespues;
+
+                    if (desc.criterioAplicacion === 'todos' ||
+                       (desc.criterioAplicacion === 'antiguedad_mayor_1' && tieneUnAno) ||
+                       (desc.criterioAplicacion === 'antiguedad_menor_1' && !tieneUnAno)) {
+                        esDiaFestivo = true;
+                        nombreFestivo = desc.descripcion;
+                    }
+                }
+            });
+
+            if (esDiaFestivo) {
+                alert(`ACCESO DENEGADO:\nHoy es día de descanso obligatorio (${nombreFestivo}).`);
+                iniciarCamara();
+                return; 
+            }
             
             // --- BLOQUEO POR INCIDENCIAS (VACACIONES, SUSPENSIO O INCAPACIDAD) ---
             // Buscamos si el empleado tiene vacaciones, suspension o incapacidad el día de hoy

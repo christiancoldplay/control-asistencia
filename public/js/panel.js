@@ -1339,8 +1339,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             btnSubmit.disabled = true;
-            btnSubmit.textContent = "Auditando y Calculando...";
-            tablaReportesBody.innerHTML = '<tr><td colspan="9" class="table-empty-state">Auditando asistencias e incidencias...</td></tr>';
+            btnSubmit.textContent = "Calculando...";
+            tablaReportesBody.innerHTML = '<tr><td colspan="12" class="table-empty-state">Calculando asistencias e incidencias...</td></tr>';
             contenedorResultadosReporte.classList.remove('hidden');
 
             try {
@@ -1352,7 +1352,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const snapshotEmpleados = await consultaEmpleados.get();
                 
                 if (snapshotEmpleados.empty) {
-                    tablaReportesBody.innerHTML = '<tr><td colspan="9" class="table-empty-state">No se encontraron empleados activos.</td></tr>';
+                    tablaReportesBody.innerHTML = '<tr><td colspan="12" class="table-empty-state">No se encontraron empleados activos.</td></tr>';
                     return;
                 }
 
@@ -1402,6 +1402,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
+                // Consultar Días de Descanso Obligatorio 
+                const snapshotDescansos = await db.collection('diasDescansoObligatorio').get();
+                const descansosArray = [];
+                snapshotDescansos.forEach(doc => descansosArray.push(doc.data()));
+
                 // 4. Procesar Empleados y Auditoría Día por Día
                 const reporteData = {};
                 const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
@@ -1418,6 +1423,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         tiempoRetardos: 0,
                         vacaciones: 0,
                         permisos: 0,
+                        descansosPagados: 0,
+                        descansosNoPagados: 0,
                         tiempoAfectadoTotal: 0,
                         minutosLaborados: 0,
                         observaciones: emp.observaciones 
@@ -1440,13 +1447,54 @@ document.addEventListener('DOMContentLoaded', () => {
                                 // Sumamos las horas base por defecto
                                 reporteData[emp.id].minutosLaborados += minDia;
 
+                                
+                                // Logica de dias festivos
+                                let esDescansoObligatorio = false;
+                                let tipoDescanso = null;
+
+                                for (const desc of descansosArray) {
+                                    const startDesc = desc.fechaInicio.toDate();
+                                    startDesc.setHours(0,0,0,0);
+                                    const endDesc = desc.fechaFin ? desc.fechaFin.toDate() : new Date(startDesc);
+                                    endDesc.setHours(23,59,59,999);
+                                    
+                                    if (d >= startDesc && d <= endDesc) {
+                                        // Calcular antigüedad exacta para este día
+                                        const [y, m, day] = emp.fechaIngreso.split('-').map(Number);
+                                        const fechaIngresoObj = new Date(y, m - 1, day);
+                                        const unAnoDespues = new Date(fechaIngresoObj);
+                                        unAnoDespues.setFullYear(unAnoDespues.getFullYear() + 1);
+                                        const tieneUnAno = d >= unAnoDespues;
+
+                                        if (desc.criterioAplicacion === 'todos' ||
+                                           (desc.criterioAplicacion === 'antiguedad_mayor_1' && tieneUnAno) ||
+                                           (desc.criterioAplicacion === 'antiguedad_menor_1' && !tieneUnAno)) {
+                                            esDescansoObligatorio = true;
+                                            tipoDescanso = desc.tipo;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (esDescansoObligatorio) {
+                                    if (tipoDescanso === 'pagado') {
+                                        reporteData[emp.id].descansosPagados += 1;
+                                        // Las horas laboradas se quedan sumadas (se le paga el día)
+                                    } else {
+                                        reporteData[emp.id].descansosNoPagados += 1;
+                                        reporteData[emp.id].minutosLaborados -= minDia; // Se le restan porque no se paga
+                                    }
+                                    continue; // Saltamos la auditoría de faltas para este día
+                                }
+                                
+
                                 // Verificar si le falta checar salida (Número impar de escaneos)
                                 const dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                                 const numEscaneosDia = (asistenciasMap[emp.id] && asistenciasMap[emp.id][dStr]) ? asistenciasMap[emp.id][dStr] : 0;                                
                                 const tieneIncidencia = incidenciasMap[emp.id] && incidenciasMap[emp.id].has(dStr);
                                 const horaSalidaDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), salHora, salMin, 0);
                                 
-                                // Evaluacion del tiempo
+                                // Evaluacion del tiempo 
                                 if (hoy > horaSalidaDate) {
                                     // El turno ya termino (o es un dia en el pasado)                         
                                     if (numEscaneosDia === 0 && !tieneIncidencia) {
@@ -1474,8 +1522,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     // C. Es un día en el FUTURO
                                     // Le quitamos las horas base porque aún no las trabaja
                                     reporteData[emp.id].minutosLaborados -= minDia;
-                                }
-    
+                                }    
                             }
                         }
                     }
@@ -1491,7 +1538,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         // calcular la deuda real actual
                         let minsAfectadosDeuda = minsAfectadosOriginales;
                         if (inc.estatus === 'compensada_totalmente') {
-                            minsAfectadosDeuda = 0; // ya pago, la deuda es 0
+                            minsAfectadosDeuda = 0
                         } else if (inc.estatus === 'compensada_parcialmente' || inc.estatus === 'pendiente_de_compensar') {
                             minsAfectadosDeuda = inc.saldoPendiente !== undefined ? inc.saldoPendiente : minsAfectadosOriginales;
                         }
@@ -1554,6 +1601,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         <td>${formatearMinutos(emp.tiempoRetardos)}</td>
                         <td>${emp.vacaciones}</td>
                         <td>${emp.permisos}</td>
+                        <td>${emp.descansosPagados}</td>
+                        <td>${emp.descansosNoPagados}</td>
                         <td>${formatearMinutos(emp.tiempoAfectadoTotal)}</td>
                         <td><strong>${horasFormateadas}</strong></td>
                         <td class="columna-oculta">${emp.observaciones || 'Sin observaciones'}</td>
@@ -1630,6 +1679,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // agregarmos 'T23:29:59' para indicar la hora final del dia 
             const fechaFin = new Date(fechaFinStr + "T23:59:59");
 
+            // 1. CONSULTAR INCIDENCIAS
             // realizamos una consulta a firestore en la coleccion 'incidencias'
             // se obtienen datos filtrados considerando el id del empleado y el rango de fechas seleccionado
             const snapshotIncidencias = await db.collection('incidencias')
@@ -1641,6 +1691,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // obtenemos y preparamos el contenedor donde se mostraran las incidencias
             const contenedorIncidencias = document.getElementById('contenedorIncidenciasDetalle');
             contenedorIncidencias.innerHTML = '';// limpiamos el contenido del contenedor
+
+            let minutosAfectadosModal = 0;
 
             // Si no hay incidencias en el periodo, mostramos un mensaje
             if (snapshotIncidencias.empty) {
@@ -1695,7 +1747,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (inc.fechaFin) {
                             const start = inc.fechaInicio.toDate();
                             const end = inc.fechaFin.toDate();
-                            // Normalizamos a medianoche para contar días exactos
                             const startD = new Date(start.getFullYear(), start.getMonth(), start.getDate());
                             const endD = new Date(end.getFullYear(), end.getMonth(), end.getDate());
                             diasIncidencia = Math.floor((endD - startD) / (1000 * 60 * 60 * 24)) + 1;
@@ -1749,6 +1800,99 @@ document.addEventListener('DOMContentLoaded', () => {
                     contenedorIncidencias.innerHTML += htmlGrupo;
                 }
 
+                // -- LOGICA DE DESCANSOS OBLIGATORIOS PARA EL MODAL --
+
+                const snapshotDescansos = await db.collection('diasDescansoObligatorio').get();
+                const descansosArray = [];
+                snapshotDescansos.forEach(doc => descansosArray.push(doc.data()));
+
+                const descansosAplicados = [];
+                const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+                const fechaIngresoEmp = new Date(empData.fechaIngreso + "T00:00:00");
+
+                // Recorremos los días del reporte para ver si alguno fue festivo para este empleado
+                for (let d = new Date(fechaInicio); d <= fechaFin; d.setDate(d.getDate() + 1)) {
+                    if (d < fechaIngresoEmp) continue; 
+
+                    const diaStr = diasSemana[d.getDay()];
+                    if (empData.horario && empData.horario[diaStr]) {
+                        const h = empData.horario[diaStr];
+                        if (h.entrada && h.salida) {
+                        
+                            let esDescansoObligatorio = false;
+                            let tipoDescanso = null;
+                            let motivoDescanso = "";
+
+                            for (const desc of descansosArray) {
+                                const startDesc = desc.fechaInicio.toDate();
+                                startDesc.setHours(0,0,0,0);
+                                const endDesc = desc.fechaFin ? desc.fechaFin.toDate() : new Date(startDesc);
+                                endDesc.setHours(23,59,59,999);
+                            
+                                if (d >= startDesc && d <= endDesc) {
+                                    const [y, m, day] = empData.fechaIngreso.split('-').map(Number);
+                                    const fechaIngresoObj = new Date(y, m - 1, day);
+                                    const unAnoDespues = new Date(fechaIngresoObj);
+                                    unAnoDespues.setFullYear(unAnoDespues.getFullYear() + 1);
+                                    const tieneUnAno = d >= unAnoDespues;
+
+                                    if (desc.criterioAplicacion === 'todos' ||
+                                        (desc.criterioAplicacion === 'antiguedad_mayor_1' && tieneUnAno) ||
+                                        (desc.criterioAplicacion === 'antiguedad_menor_1' && !tieneUnAno)) {
+                                         esDescansoObligatorio = true;
+                                         tipoDescanso = desc.tipo;
+                                         motivoDescanso = desc.descripcion;
+                                         break;
+                                }
+                            }
+                        }
+
+                        if (esDescansoObligatorio) {
+                            // Calculamos cuántas horas le cubrió este descanso según su horario base
+                            const [entHora, entMin] = h.entrada.split(':').map(Number);
+                            const [salHora, salMin] = h.salida.split(':').map(Number);
+                            let minDia = ((salHora * 60) + salMin) - ((entHora * 60) + entMin);
+                            if (!h.omitirDescanso) {
+                                minDia -= (h.duracionDescansoMinutos || 0);
+                            }
+                            
+                            descansosAplicados.push({
+                                fecha: new Date(d),
+                                tipo: tipoDescanso,
+                                motivo: motivoDescanso,
+                                minutos: minDia
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Inyectar el HTML de los descansos si hubo alguno
+            if (descansosAplicados.length > 0) {
+                let htmlDescansos = `<h4 class="reporte-tipo-titulo">DESCANSOS OBLIGATORIOS (${descansosAplicados.length})</h4>`;
+                htmlDescansos += `<ul class="reporte-lista">`;
+                
+                descansosAplicados.forEach(desc => {
+                    const fechaFormateada = desc.fecha.toLocaleDateString('es-MX');
+                    const tipoTexto = desc.tipo.replace(/_/g, ' ').toUpperCase();
+                    const horasTexto = formatearMinutos(desc.minutos);
+
+                    htmlDescansos += `
+                        <li class="reporte-item">
+                            <div class="reporte-item-header">
+                                <span>Fecha: ${fechaFormateada} | Tipo: ${tipoTexto}</span>
+                                <span class="etq-horas">${horasTexto} cubiertas</span>
+                            </div>
+                            <div class="reporte-item-motivo">Motivo: ${desc.motivo}</div>
+                        </li>
+                    `;
+                });
+                htmlDescansos += `</ul>`;
+                contenedorIncidencias.innerHTML += htmlDescansos;
+            }
+            // =========================================================
+
+                // Resumenes finales
                 // Formatear las horas laboradas que recibimos como parámetro
                 const absMinutosLab = Math.abs(minutosLaboradosTotales);
                 const horasLabFormateadas = formatearMinutos(absMinutosLab);
