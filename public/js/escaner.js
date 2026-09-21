@@ -200,14 +200,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; // Detenemos el escaneo, no se registra la asistencia
             }
 
-            // -- LOGICA DE INCIDENCIAS AUTOMATICAS (Retardos y salidas) --
-            const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
-            const diaHoyStr = diasSemana[ahora.getDay()];
-            const horarioHoy = (emp.horario && emp.horario[diaHoyStr]) ? emp.horario[diaHoyStr] : null;
+            // -- LOGICA DE INCIDENCIAS AUTOMATICAS (Retardos y salidas) --     
 
             const inicioDia = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), 0, 0, 0);
             const finDia = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), 23, 59, 59);
+
+            // 1. Consultar si hay un Ajuste de Horario para hoy
+            const snapshotAjustes = await db.collection('ajustesHorario')
+                .where('empleadoID', '==', textoDecodificado)
+                .where('fecha', '>=', firebase.firestore.Timestamp.fromDate(inicioDia))
+                .where('fecha', '<=', firebase.firestore.Timestamp.fromDate(finDia))
+                .get();
+
+            let horarioAjustado = null;
+            if (!snapshotAjustes.empty) {
+                horarioAjustado = snapshotAjustes.docs[0].data();
+            }
+
+            // 2. Definir cuál es el horario que rige hoy (Ajuste > Base > Nada)
+            const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+            const diaHoyStr = diasSemana[ahora.getDay()];
+
+            let horarioHoy = null;
+            if (horarioAjustado) {
+                horarioHoy = horarioAjustado;
+            } else if (emp.horario && emp.horario[diaHoyStr]) {
+                horarioHoy = emp.horario[diaHoyStr];
+            }
             
+            // 3. Consultar escaneos previos de hoy
             const escaneosHoy = await db.collection('registrosAsistencia')
                 .where('empleadoID', '==', textoDecodificado)
                 .where('fechaHora', '>=', firebase.firestore.Timestamp.fromDate(inicioDia))
@@ -216,6 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const numEscaneos = escaneosHoy.size;
 
+            // 4. evaluar retardos y salidas solo si tiene un horario que cumplir hoy
             if (horarioHoy) {
                 // A) EVALUAR ENTRADA (Primer escaneo del día)
                 if (numEscaneos === 0 && horarioHoy.entrada) {
@@ -280,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 fechaInicio: firebase.firestore.Timestamp.fromDate(ahora),
                                 horasAfectadas: minutosAnticipados, 
                                 autorizantes: 'Sistema Automático',
-                                motivo: `El empleado registró su salida temprano. Se retiró ${formatearMinutos(minutosAnticipados)} antes de su hora de salida (${horarioHoy.salida}).`,
+                                motivo: `El empleado registró su salida temprano. Se retiró ${formatearMinutos(minutosAnticipados)} antes de su hora de salida oficial: (${horarioHoy.salida}).`,
                                 estatus: 'pendiente_de_revision',
                                 saldoPendiente: null,
                                 fechaCreacion: firebase.firestore.FieldValue.serverTimestamp(),
@@ -290,7 +312,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
-
+            
+            // Si no hay horarioHoy, es un Día Libre. No genera retardos, solo guarda la asistencia
             // Guardamos el registro de asistencia normal
             const registroData = {
                 empleadoID: textoDecodificado,

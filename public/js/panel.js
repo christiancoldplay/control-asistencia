@@ -3307,12 +3307,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 const empleadosArray = Object.entries(empleadosData).map(([id, datos]) => ({ id, ...datos }));
                 empleadosArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
+            // --- Consultar Días de Descanso Obligatorio ---
+            // Lo hacemos fuera del ciclo para no saturar la base de datos
+            db.collection('diasDescansoObligatorio').get().then(snapshotDescansos => {
+                    const descansosArray = [];
+                    snapshotDescansos.forEach(doc => descansosArray.push(doc.data()));
+
                 empleadosArray.forEach(emp => {
                     // Si la fecha del monitor de registro diario es menor a su contratacion, sale de la funcion
                     const fechaIngresoEmp = new Date(emp.fechaIngreso + "T00:00:00");
                     if (fechaMonitor < fechaIngresoEmp) return; 
 
-                    // --- LOGICA DE PRIORIDAD DE HORARIO (Ajuste vs Base) ---
+                    // 1. Evaluar si hoy es Día de Descanso para este empleado
+                    let esDescansoObligatorio = false;
+                    let nombreDescanso = "";
+
+                    for (const desc of descansosArray) {
+                            const startDesc = desc.fechaInicio.toDate();
+                            startDesc.setHours(0,0,0,0);
+                            const endDesc = desc.fechaFin ? desc.fechaFin.toDate() : new Date(startDesc);
+                            endDesc.setHours(23,59,59,999);
+                            
+                            if (fechaMonitor >= startDesc && fechaMonitor <= endDesc) {
+                                const [y, m, day] = emp.fechaIngreso.split('-').map(Number);
+                                const fechaIngresoObj = new Date(y, m - 1, day);
+                                const unAnoDespues = new Date(fechaIngresoObj);
+                                unAnoDespues.setFullYear(unAnoDespues.getFullYear() + 1);
+                                const tieneUnAno = fechaMonitor >= unAnoDespues;
+
+                                if (desc.criterioAplicacion === 'todos' ||
+                                   (desc.criterioAplicacion === 'antiguedad_mayor_1' && tieneUnAno) ||
+                                   (desc.criterioAplicacion === 'antiguedad_menor_1' && !tieneUnAno)) {
+                                    esDescansoObligatorio = true;
+                                    nombreDescanso = desc.descripcion;
+                                    break;
+                                }
+                            }
+                        }
+
+                    // --- Logica de prioridad de horario (Ajuste vs Base) ---
                     let horarioHoy = null;
                     let esHorarioAjustado = false;
 
@@ -3324,9 +3357,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Si no hay ajuste, tomamos su horario base normal
                     else if (emp.horario && emp.horario[diaActualStr]) {
                         horarioHoy = emp.horario[diaActualStr];
-                    }
-                    // --------------------------------------------------------------
+                    }                    
                     
+                    // Si no trabaja hoy, no es festivo y no tiene escaneos, lo ignoramos
                     if (!horarioHoy && emp.escaneos.length === 0) return;
 
                     const tr = document.createElement('tr');
@@ -3339,6 +3372,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (esHorarioAjustado) {
                             textoHorario += `<br><span class="texto-secundario">(Horario Ajustado)</span>`;
                         }
+                    } else if (esDescansoObligatorio) {
+                            textoHorario = `<span class="texto-secundario">Día Festivo</span>`;
                     }
 
                     let htmlEscaneos = '<ul class="lista-escaneos">';
@@ -3353,54 +3388,69 @@ document.addEventListener('DOMContentLoaded', () => {
                     htmlEscaneos += '</ul>';
 
                     let claseEstatus = 'etq-gris';
-                    let textoEstatus = 'No ha llegado';
+                    let textoEstatus = 'No hay registro de asistencia';
                     const numEscaneos = emp.escaneos.length;
-                    
-                    if (numEscaneos === 1) {
-                        claseEstatus = 'etq-verde';
-                        textoEstatus = 'En turno';
-                    } else if (numEscaneos === 2) {
-                        // Nota: horarioHoy ahora contiene el ajuste (si lo hay), por lo que omitirDescanso se respeta
-                        if (emp.tipoJornada === 'continua_sin_descanso' || (horarioHoy && horarioHoy.omitirDescanso)) {
-                            claseEstatus = 'etq-azul';
-                            textoEstatus = 'Turno completado';
-                        } else if (emp.ultimoEscaneoEsManual) {
-                            claseEstatus = 'etq-azul';
-                            textoEstatus = 'Turno completado (Salida Manual)';
-                        } else {
-                            if (horarioHoy && horarioHoy.salida) {
-                                const [sH, sM] = horarioHoy.salida.split(':').map(Number);
-                                const finTurnoDate = new Date(fechaMonitor.getFullYear(), fechaMonitor.getMonth(), fechaMonitor.getDate(), sH, sM, 0);
-                                if (ahora > finTurnoDate) {
-                                    claseEstatus = 'etq-azul';
-                                    textoEstatus = 'Turno completado..';
-                                } else {
-                                    claseEstatus = 'etq-naranja';
-                                    textoEstatus = 'En descanso';
-                                }
-                            } else {
-                                claseEstatus = 'etq-naranja';
-                                textoEstatus = 'En descanso';
-                            }
-                        }
-                    } else if (numEscaneos === 3) {
-                        claseEstatus = 'etq-verde';
-                        textoEstatus = 'En turno';
-                    } else if (numEscaneos >= 4) {
-                        claseEstatus = 'etq-azul';
-                        textoEstatus = 'Turno completado';
-                    }
-
                     let botonAccion = `
-                        <button class="btn-icon" title="Registrar Incidencia Manual">
-                            <img src="recursos/icono-editar.svg" alt="Registrar">
-                        </button>
-                    `;
-
-                    // Evaluación de fin de jornada y Faltas Automáticas
-                    if (horarioHoy && horarioHoy.salida) {
-                        const [salHora, salMin] = horarioHoy.salida.split(':').map(Number);
-                        const horaSalidaDate = new Date(fechaMonitor.getFullYear(), fechaMonitor.getMonth(), fechaMonitor.getDate(), salHora, salMin, 0);
+                            <button class="btn-icon" title="Registrar Incidencia Manual">
+                                <img src="recursos/icono-editar.svg" alt="Registrar">
+                            </button>
+                        `;                    
+                                        
+                    // 3. LÓGICA DE ESTATUS VISUAL
+                        if (esDescansoObligatorio) {
+                            if (numEscaneos === 0) {
+                                claseEstatus = 'etq-gris';
+                                textoEstatus = `Descanso: ${nombreDescanso}`;
+                            } else {
+                                claseEstatus = 'etq-morado';
+                                textoEstatus = 'Asistencia en Día Libre';
+                            }
+                        } else if (!horarioHoy) {
+                            if (numEscaneos > 0) {
+                                claseEstatus = 'etq-morado';
+                                textoEstatus = 'Asistencia en Día Libre';
+                            }
+                        } else {
+                            // Lógica normal de turnos
+                            if (numEscaneos === 1) {
+                                claseEstatus = 'etq-verde';
+                                textoEstatus = 'En turno';
+                            } else if (numEscaneos === 2) {
+                                if (emp.tipoJornada === 'continua_sin_descanso' || (horarioHoy && horarioHoy.omitirDescanso)) {
+                                    claseEstatus = 'etq-azul';
+                                    textoEstatus = 'Turno completado';
+                                } else if (emp.ultimoEscaneoEsManual) {
+                                    claseEstatus = 'etq-azul';
+                                    textoEstatus = 'Turno completado (Salida Manual)';
+                                } else {
+                                    if (horarioHoy && horarioHoy.salida) {
+                                        const [sH, sM] = horarioHoy.salida.split(':').map(Number);
+                                        const finTurnoDate = new Date(fechaMonitor.getFullYear(), fechaMonitor.getMonth(), fechaMonitor.getDate(), sH, sM, 0);
+                                        if (ahora > finTurnoDate) {
+                                            claseEstatus = 'etq-azul';
+                                            textoEstatus = 'Turno completado (Faltó escaneo de descanso)';
+                                        } else {
+                                            claseEstatus = 'etq-naranja';
+                                            textoEstatus = 'En descanso';
+                                        }
+                                    } else {
+                                        claseEstatus = 'etq-naranja';
+                                        textoEstatus = 'En descanso';
+                                    }
+                                }
+                            } else if (numEscaneos === 3) {
+                                claseEstatus = 'etq-verde';
+                                textoEstatus = 'Regresó de descanso';
+                            } else if (numEscaneos >= 4) {
+                                claseEstatus = 'etq-azul';
+                                textoEstatus = 'Turno completado';
+                            }
+                    
+                    
+                            // Evaluación de faltas automaticas y salidas omitidas
+                            if (horarioHoy && horarioHoy.salida) {
+                                const [salHora, salMin] = horarioHoy.salida.split(':').map(Number);
+                                const horaSalidaDate = new Date(fechaMonitor.getFullYear(), fechaMonitor.getMonth(), fechaMonitor.getDate(), salHora, salMin, 0);
                         
                         if (ahora > horaSalidaDate) {
                             if (numEscaneos === 0) {
@@ -3421,6 +3471,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         }
                     }
+                }
+                
 
                     tr.innerHTML = `
                         <td>
@@ -3434,6 +3486,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     `;
                     tablaMonitorBody.appendChild(tr);
                 });
+            
+            });
 
             }, (error) => {
                 console.error("Error en el monitor:", error);

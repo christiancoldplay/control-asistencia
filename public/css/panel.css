@@ -919,6 +919,7 @@ legend {
 .etq-azul { background-color: #bee3f8; color: #2a4365; } /* Turno completado */
 .etq-naranja { background-color: #feebc8; color: #975a16; } /* En descanso */
 .etq-rojo { background-color: #fed7d7; color: #9b2c2c; } /* Alerta / Falta salida */
+.etq-morado { background-color: #e9d8fd; color: #44337a; } /* Dias libres */
 
 /* Lista de horas escaneadas */
 .lista-escaneos {
