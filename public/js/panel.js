@@ -1322,7 +1322,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- Escuchador del formulario ---
     if (formFiltrosReporte) {
-        formFiltrosReporte.addEventListener('submit', async (e) => {
+       formFiltrosReporte.addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const btnSubmit = formFiltrosReporte.querySelector('button[type="submit"]');
@@ -1340,8 +1340,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             btnSubmit.disabled = true;
-            btnSubmit.textContent = "Calculando...";
-            tablaReportesBody.innerHTML = '<tr><td colspan="12" class="table-empty-state">Calculando asistencias e incidencias...</td></tr>';
+            btnSubmit.textContent = "Auditando y Calculando...";
+            tablaReportesBody.innerHTML = '<tr><td colspan="10" class="table-empty-state">Auditando asistencias e incidencias...</td></tr>';
             contenedorResultadosReporte.classList.remove('hidden');
 
             try {
@@ -1353,11 +1353,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const snapshotEmpleados = await consultaEmpleados.get();
                 
                 if (snapshotEmpleados.empty) {
-                    tablaReportesBody.innerHTML = '<tr><td colspan="12" class="table-empty-state">No se encontraron empleados activos.</td></tr>';
+                    tablaReportesBody.innerHTML = '<tr><td colspan="10" class="table-empty-state">No se encontraron empleados activos.</td></tr>';
                     return;
                 }
 
-                // 2. Consultar Escaneos y contarlos por dia
+                // 2. Consultar Escaneos
                 const snapshotAsistencias = await db.collection('registrosAsistencia')
                     .where('fechaHora', '>=', firebase.firestore.Timestamp.fromDate(fechaInicio))
                     .where('fechaHora', '<=', firebase.firestore.Timestamp.fromDate(fechaFin))
@@ -1368,14 +1368,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     const reg = doc.data();
                     const fechaObj = reg.fechaHora.toDate();
                     const fechaStr = `${fechaObj.getFullYear()}-${String(fechaObj.getMonth()+1).padStart(2,'0')}-${String(fechaObj.getDate()).padStart(2,'0')}`;
-                    
                     if (!asistenciasMap[reg.empleadoID]) asistenciasMap[reg.empleadoID] = {};
                     if (!asistenciasMap[reg.empleadoID][fechaStr]) asistenciasMap[reg.empleadoID][fechaStr] = 0;
-                    
-                    asistenciasMap[reg.empleadoID][fechaStr]++; // Contamos cuántos escaneos tuvo ese día
+                    asistenciasMap[reg.empleadoID][fechaStr]++;
                 });
 
-                // 3. Consultar Incidencias existentes
+                // 3. Consultar Incidencias
                 const snapshotIncidencias = await db.collection('incidencias')
                     .where('fechaInicio', '>=', firebase.firestore.Timestamp.fromDate(fechaInicio))
                     .where('fechaInicio', '<=', firebase.firestore.Timestamp.fromDate(fechaFin))
@@ -1387,13 +1385,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 snapshotIncidencias.forEach(doc => {
                     const inc = doc.data();
                     incidenciasArray.push(inc);
-                    
                     if (!incidenciasMap[inc.empleadoID]) incidenciasMap[inc.empleadoID] = new Set();
                     
-                    // Registrar todos los días que abarca la incidencia
                     const start = inc.fechaInicio.toDate();
                     const end = inc.fechaFin ? inc.fechaFin.toDate() : start;
-                    
                     const startD = new Date(start.getFullYear(), start.getMonth(), start.getDate());
                     const endD = new Date(end.getFullYear(), end.getMonth(), end.getDate());
                     
@@ -1403,12 +1398,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
-                // Consultar Días de Descanso Obligatorio 
+                // 4. Consultar Días de Descanso Obligatorio
                 const snapshotDescansos = await db.collection('diasDescansoObligatorio').get();
                 const descansosArray = [];
                 snapshotDescansos.forEach(doc => descansosArray.push(doc.data()));
 
-                // 4. Procesar Empleados y Auditoría Día por Día
+                // --- Consultar Ajustes de Horario ---
+                const snapshotAjustes = await db.collection('ajustesHorario')
+                    .where('fecha', '>=', firebase.firestore.Timestamp.fromDate(fechaInicio))
+                    .where('fecha', '<=', firebase.firestore.Timestamp.fromDate(fechaFin))
+                    .get();
+
+                const ajustesMap = {};
+                snapshotAjustes.forEach(doc => {
+                    const ajuste = doc.data();
+                    const fechaObj = ajuste.fecha.toDate();
+                    const fechaStr = `${fechaObj.getFullYear()}-${String(fechaObj.getMonth()+1).padStart(2,'0')}-${String(fechaObj.getDate()).padStart(2,'0')}`;
+                    if (!ajustesMap[ajuste.empleadoID]) ajustesMap[ajuste.empleadoID] = {};
+                    ajustesMap[ajuste.empleadoID][fechaStr] = ajuste;
+                });
+
+                // 6. Procesar Empleados y Auditoría Día por Día
                 const reporteData = {};
                 const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
 
@@ -1424,8 +1434,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         tiempoRetardos: 0,
                         vacaciones: 0,
                         permisos: 0,
-                        descansosPagados: 0,
-                        descansosNoPagados: 0,
+                        descansosPagados: 0, 
+                        descansosNoPagados: 0, 
                         tiempoAfectadoTotal: 0,
                         minutosLaborados: 0,
                         observaciones: emp.observaciones 
@@ -1435,115 +1445,105 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (d < fechaIngresoEmp) continue; 
 
                         const diaStr = diasSemana[d.getDay()];
-                        if (emp.horario && emp.horario[diaStr]) {
-                            const h = emp.horario[diaStr];
-                            if (h.entrada && h.salida) {
-                                const [entHora, entMin] = h.entrada.split(':').map(Number);
-                                const [salHora, salMin] = h.salida.split(':').map(Number);
-                                let minDia = ((salHora * 60) + salMin) - ((entHora * 60) + entMin);
+                        const dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                        
+                        // --- Logica de Prioridad de Horario (Ajuste vs Base) ---
+                        let h = null;
+                        if (ajustesMap[emp.id] && ajustesMap[emp.id][dStr]) {
+                            h = ajustesMap[emp.id][dStr]; // Tiene prioridad el ajuste
+                        } else if (emp.horario && emp.horario[diaStr]) {
+                            h = emp.horario[diaStr]; // Si no hay ajuste, usa el base
+                        }
+
+                        if (h && h.entrada && h.salida) {
+                            const [entHora, entMin] = h.entrada.split(':').map(Number);
+                            const [salHora, salMin] = h.salida.split(':').map(Number);
+                            let minDia = ((salHora * 60) + salMin) - ((entHora * 60) + entMin);
+                            
+                            if (!h.omitirDescanso) {
+                                minDia -= (h.duracionDescansoMinutos || 0);
+                            }
+                            reporteData[emp.id].minutosLaborados += minDia;
+
+                            // Escudo Protector de Días Festivos
+                            let esDescansoObligatorio = false;
+                            let tipoDescanso = null;
+
+                            for (const desc of descansosArray) {
+                                const startDesc = desc.fechaInicio.toDate();
+                                startDesc.setHours(0,0,0,0);
+                                const endDesc = desc.fechaFin ? desc.fechaFin.toDate() : new Date(startDesc);
+                                endDesc.setHours(23,59,59,999);
                                 
-                                if (!h.omitirDescanso) {
-                                    minDia -= (h.duracionDescansoMinutos || 0);
-                                }
-                                // Sumamos las horas base por defecto
-                                reporteData[emp.id].minutosLaborados += minDia;
+                                if (d >= startDesc && d <= endDesc) {
+                                    const [y, m, day] = emp.fechaIngreso.split('-').map(Number);
+                                    const fechaIngresoObj = new Date(y, m - 1, day);
+                                    const unAnoDespues = new Date(fechaIngresoObj);
+                                    unAnoDespues.setFullYear(unAnoDespues.getFullYear() + 1);
+                                    const tieneUnAno = d >= unAnoDespues;
 
-                                
-                                // Logica de dias festivos
-                                let esDescansoObligatorio = false;
-                                let tipoDescanso = null;
-
-                                for (const desc of descansosArray) {
-                                    const startDesc = desc.fechaInicio.toDate();
-                                    startDesc.setHours(0,0,0,0);
-                                    const endDesc = desc.fechaFin ? desc.fechaFin.toDate() : new Date(startDesc);
-                                    endDesc.setHours(23,59,59,999);
-                                    
-                                    if (d >= startDesc && d <= endDesc) {
-                                        // Calcular antigüedad exacta para este día
-                                        const [y, m, day] = emp.fechaIngreso.split('-').map(Number);
-                                        const fechaIngresoObj = new Date(y, m - 1, day);
-                                        const unAnoDespues = new Date(fechaIngresoObj);
-                                        unAnoDespues.setFullYear(unAnoDespues.getFullYear() + 1);
-                                        const tieneUnAno = d >= unAnoDespues;
-
-                                        if (desc.criterioAplicacion === 'todos' ||
-                                           (desc.criterioAplicacion === 'antiguedad_mayor_1' && tieneUnAno) ||
-                                           (desc.criterioAplicacion === 'antiguedad_menor_1' && !tieneUnAno)) {
-                                            esDescansoObligatorio = true;
-                                            tipoDescanso = desc.tipo;
-                                            break;
-                                        }
+                                    if (desc.criterioAplicacion === 'todos' ||
+                                       (desc.criterioAplicacion === 'antiguedad_mayor_1' && tieneUnAno) ||
+                                       (desc.criterioAplicacion === 'antiguedad_menor_1' && !tieneUnAno)) {
+                                        esDescansoObligatorio = true;
+                                        tipoDescanso = desc.tipo;
+                                        break;
                                     }
                                 }
+                            }
 
-                                if (esDescansoObligatorio) {
-                                    if (tipoDescanso === 'pagado') {
-                                        reporteData[emp.id].descansosPagados += 1;
-                                        // Las horas laboradas se quedan sumadas (se le paga el día)
-                                    } else {
-                                        reporteData[emp.id].descansosNoPagados += 1;
-                                        reporteData[emp.id].minutosLaborados -= minDia; // Se le restan porque no se paga
-                                    }
-                                    continue; // Saltamos la auditoría de faltas para este día
+                            if (esDescansoObligatorio) {
+                                if (tipoDescanso === 'pagado') {
+                                    reporteData[emp.id].descansosPagados += 1;
+                                } else {
+                                    reporteData[emp.id].descansosNoPagados += 1;
+                                    reporteData[emp.id].minutosLaborados -= minDia; 
                                 }
-                                
+                                continue; 
+                            }
 
-                                // Verificar si le falta checar salida (Número impar de escaneos)
-                                const dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                                const numEscaneosDia = (asistenciasMap[emp.id] && asistenciasMap[emp.id][dStr]) ? asistenciasMap[emp.id][dStr] : 0;                                
-                                const tieneIncidencia = incidenciasMap[emp.id] && incidenciasMap[emp.id].has(dStr);
-                                const horaSalidaDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), salHora, salMin, 0);
-                                
-                                // Evaluacion del tiempo 
-                                if (hoy > horaSalidaDate) {
-                                    // El turno ya termino (o es un dia en el pasado)                         
-                                    if (numEscaneosDia === 0 && !tieneIncidencia) {
-                                        // no asistio y no tiene incidencia -> Falta automatica
-                                        window.registrarFaltaAutomatica(emp, h, new Date(d));
-                                        reporteData[emp.id].faltas += 1;
-                                        reporteData[emp.id].tiempoAfectadoTotal += minDia;
-                                        reporteData[emp.id].minutosLaborados -= minDia;
-                                    } 
-                                    // Si tiene 1 o 3 escaneos, no le sumamos las horas base
-                                    else if ((numEscaneosDia === 1 || numEscaneosDia === 3) && !tieneIncidencia) {
-                                        // Asistio el empleado pero no checo salida, se retienen esas horas temporalmente no suman a horas laboradas
-                                        reporteData[emp.id].minutosLaborados -= minDia; 
-                                    }                                    
-                                }
-                                else if (d.toDateString() === hoy.toDateString()) {
-                                    // Es hoy, pero el turno aun no termina
-                                    if (numEscaneosDia === 0 && !tieneIncidencia) {
-                                        // No ha llegado. Le quitamos las horas base que le sumamos arriba.
-                                        // No le ponemos falta automática aún (esperamos a que acabe el turno).
-                                        reporteData[emp.id].minutosLaborados -= minDia;
-                                    }
-                                }
-                                else if (d > hoy) {
-                                    // C. Es un día en el FUTURO
-                                    // Le quitamos las horas base porque aún no las trabaja
+                            // Auditoría de Faltas Automáticas
+                            const numEscaneosDia = (asistenciasMap[emp.id] && asistenciasMap[emp.id][dStr]) ? asistenciasMap[emp.id][dStr] : 0;
+                            const tieneIncidencia = incidenciasMap[emp.id] && incidenciasMap[emp.id].has(dStr);
+                            const horaSalidaDate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), salHora, salMin, 0);
+                            
+                            if (hoy > horaSalidaDate) {
+                                if (numEscaneosDia === 0 && !tieneIncidencia) {
+                                    window.registrarFaltaAutomatica(emp, h, new Date(d));
+                                    reporteData[emp.id].faltas += 1;
+                                    reporteData[emp.id].tiempoAfectadoTotal += minDia;
                                     reporteData[emp.id].minutosLaborados -= minDia;
-                                }    
+                                } 
+                                else if ((numEscaneosDia === 1 || numEscaneosDia === 3) && !tieneIncidencia) {
+                                    reporteData[emp.id].minutosLaborados -= minDia; 
+                                }
+                            } 
+                            else if (d.toDateString() === hoy.toDateString()) {
+                                if (numEscaneosDia === 0 && !tieneIncidencia) {
+                                    reporteData[emp.id].minutosLaborados -= minDia;
+                                }
+                            } 
+                            else if (d > hoy) {
+                                reporteData[emp.id].minutosLaborados -= minDia;
                             }
                         }
                     }
                 });
 
-                // 5. Procesar Incidencias Existentes
+                // 7. Procesar Incidencias Existentes
                 incidenciasArray.forEach(inc => {
                     const empID = inc.empleadoID;
                     if (reporteData[empID]) {
                         const tipo = inc.tipoIncidencia;
                         const minsAfectadosOriginales = inc.horasAfectadas || 0;
                         
-                        // calcular la deuda real actual
                         let minsAfectadosDeuda = minsAfectadosOriginales;
                         if (inc.estatus === 'compensada_totalmente') {
-                            minsAfectadosDeuda = 0
+                            minsAfectadosDeuda = 0; 
                         } else if (inc.estatus === 'compensada_parcialmente' || inc.estatus === 'pendiente_de_compensar') {
                             minsAfectadosDeuda = inc.saldoPendiente !== undefined ? inc.saldoPendiente : minsAfectadosOriginales;
                         }
-
+                        
                         let diasIncidencia = 1;
                         if (inc.fechaFin) {
                             const start = inc.fechaInicio.toDate();
@@ -1552,7 +1552,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             const endD = new Date(end.getFullYear(), end.getMonth(), end.getDate());
                             diasIncidencia = Math.floor((endD - startD) / (1000 * 60 * 60 * 24)) + 1;
                         }
-                        // DISTRIBUCION DE INCIDENCIAS
+
                         if (tipo === 'falta_injustificada') {
                             reporteData[empID].faltas += diasIncidencia; 
                         } else if (tipo === 'retardo_injustificado') {
@@ -1567,20 +1567,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         const tiposSuma = ['recuperacion_horas', 'compensacion_hora_extra'];
                         
                         if (tiposResta.includes(tipo)) {
-                            // sumamos a la columna solo la deuda que no se ha pagado
                             reporteData[empID].tiempoAfectadoTotal += minsAfectadosDeuda; 
-                            // restamos del tiempo laborado el total original (la recuperacion lo sumara despues)
                             reporteData[empID].minutosLaborados -= minsAfectadosOriginales;
                         } else if (tiposSuma.includes(tipo)) {
-                            // solo sumamos a las horas laboradas el tiempo que pago a la deuda
-                            // el excedente se ignora en este reporte, porque ya se fue al saldoHorasExtra
                             const tiempoRealmentePagado = inc.tiempoCompensado !== undefined ? inc.tiempoCompensado : minsAfectadosOriginales;
                             reporteData[empID].minutosLaborados += tiempoRealmentePagado;
                         }
                     }
                 });
 
-                // 6. Dibujar la tabla
+                // 8. Dibujar la tabla
                 tablaReportesBody.innerHTML = '';
                 const empleadosArray = Object.entries(reporteData).map(([id, datos]) => ({ id, ...datos }));
                 empleadosArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
