@@ -23,6 +23,7 @@
                 <button class="nav-item" data-target="seccion-reportes">Reportes y Consultas</button>
                 <button class="nav-item active" data-target="seccion-empleados">Gestión de Empleados</button>
                 <button class="nav-item" data-target="seccion-descansos">Descansos Obligatorios</button>
+                <button class="nav-item" data-target="seccion-ajustes">Ajustes Horario</button>
                 <button class="nav-item" data-target="seccion-usuarios">Gestión de Usuarios</button>
             </nav>
 
@@ -665,7 +666,99 @@
                 </div>
             </section>
 
-            <!-- SECCION 6: GESTION DE USUARIOS -->
+            <!-- SECCION 6: AJUSTES DE HORARIO -->
+            <section id="seccion-ajustes" class="content-section">
+                <header class="section-header">
+                    <h2>Gestión de Ajustes de Horario</h2>
+                </header>
+                
+                <!-- SUB-VISTA A: LISTADO -->
+                <div id="vistaListaAjustes" class="card-container">
+                    <div class="card-header-flex">
+                        <h3>Historial de Ajustes</h3>
+                        <div class="header-acciones">
+                            <input type="text" id="buscadorAjustes" class="buscador-input" placeholder="Buscar ajuste...">
+                            <button id="btnMostrarFormAjuste" class="btn-primary btn-auto">Nuevo Ajuste</button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha Aplicación</th>
+                                    <th>Empleado</th>
+                                    <th>Horario Ajustado</th>
+                                    <th>Motivo</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaAjustesBody">
+                                <tr>
+                                    <td colspan="5" class="table-empty-state">Cargando ajustes...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- SUB-VISTA B: FORMULARIO -->
+                <div id="vistaFormularioAjuste" class="card-container hidden">
+                    <div class="card-header-flex">
+                        <h3 id="tituloFormAjuste">Registrar Ajuste de Horario</h3>
+                        <button id="btnVolverListaAjustes" class="btn-logout btn-auto m-0">Volver a la lista</button>
+                    </div>
+                    
+                    <form id="formRegistroAjuste" class="admin-form">
+                        <fieldset>
+                            <legend>Datos del Ajuste</legend>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="ajusteEmpleado">Seleccionar Empleado *</label>
+                                    <select id="ajusteEmpleado" required>
+                                        <option value="">Cargando empleados...</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="ajusteFecha">Fecha de Aplicación *</label>
+                                    <input type="date" id="ajusteFecha" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="ajusteEntrada">Nueva Hora de Entrada *</label>
+                                    <input type="time" id="ajusteEntrada" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="ajusteSalida">Nueva Hora de Salida *</label>
+                                    <input type="time" id="ajusteSalida" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="ajusteInicioDescanso">Inicio de Descanso (Opcional)</label>
+                                    <input type="time" id="ajusteInicioDescanso">
+                                </div>
+                                <div class="form-group">
+                                    <label for="ajusteMinDescanso">Duración Descanso (Minutos) *</label>
+                                    <input type="number" id="ajusteMinDescanso" min="0" step="15" value="0" required>
+                                </div>
+                                <div class="form-group" style="grid-column: 1 / -1;">
+                                    <label for="ajusteAutorizantes">Autorizado por (Nombre y Cargo)</label>
+                                    <input type="text" id="ajusteAutorizantes">
+                                </div>
+                            </div>
+                            
+                            <div class="form-group observaciones-group">
+                                <label for="ajusteMotivo">Motivo del Cambio *</label>
+                                <textarea id="ajusteMotivo" rows="2" required placeholder="Ej. Trabajara turno corrido, cambio de turno, etc..."></textarea>
+                            </div>
+                        </fieldset>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary btn-auto">Guardar Ajuste</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- SECCION 7: GESTION DE USUARIOS -->
             <section id="seccion-usuarios" class="content-section">
                 <header>
                     <h2>Gestión de Usuarios (Accesos)</h2>    

@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
             cargarUsuarios();//carga la tabla de usuarios
             cargarIncidencias();//carga la tabla de incidencias
             cargarDescansos();//carga la tabla de descansos
+            cargarAjustes();// carga la tabla de ajustes de horario
         } else { //si no esta autenticado redirige al login (index.html)
             window.location.replace('index.html');
         }
@@ -3248,8 +3249,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 empleadosData[doc.id] = { ...doc.data(), escaneos: [] };
             });
         } catch (error) {
-            console.error("Error al cargar empleados para el monitor:", error);
+            console.error("Error al cargar empleados:", error);
             return;
+        }
+
+        // --- Consultar Ajustes de Horario para la fecha seleccionada ---
+        const ajustesMap = {};
+        try {
+            const snapshotAjustes = await db.collection('ajustesHorario')
+                .where('fecha', '>=', firebase.firestore.Timestamp.fromDate(inicioDia))
+                .where('fecha', '<=', firebase.firestore.Timestamp.fromDate(finDia))
+                .get();
+            
+            snapshotAjustes.forEach(doc => {
+                const ajuste = doc.data();
+                ajustesMap[ajuste.empleadoID] = ajuste; // Guardamos el ajuste vinculado al ID del empleado
+            });
+        } catch (error) {
+            console.error("Error al cargar ajustes de horario:", error);
         }
 
         // 3. APAGAR EL ESCUCHADOR ANTERIOR (Si existe)
@@ -3291,18 +3308,37 @@ document.addEventListener('DOMContentLoaded', () => {
                 empleadosArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
                 empleadosArray.forEach(emp => {
+                    // Si la fecha del monitor de registro diario es menor a su contratacion, sale de la funcion
                     const fechaIngresoEmp = new Date(emp.fechaIngreso + "T00:00:00");
                     if (fechaMonitor < fechaIngresoEmp) return; 
 
-                    const horarioHoy = (emp.horario && emp.horario[diaActualStr]) ? emp.horario[diaActualStr] : null;
+                    // --- LOGICA DE PRIORIDAD DE HORARIO (Ajuste vs Base) ---
+                    let horarioHoy = null;
+                    let esHorarioAjustado = false;
+
+                    // Verificamos si existe un ajuste temporal para este empleado en el día consultado
+                    if (typeof ajustesMap !== 'undefined' && ajustesMap[emp.id]) {
+                        horarioHoy = ajustesMap[emp.id];
+                        esHorarioAjustado = true;
+                    } 
+                    // Si no hay ajuste, tomamos su horario base normal
+                    else if (emp.horario && emp.horario[diaActualStr]) {
+                        horarioHoy = emp.horario[diaActualStr];
+                    }
+                    // --------------------------------------------------------------
                     
                     if (!horarioHoy && emp.escaneos.length === 0) return;
 
                     const tr = document.createElement('tr');
                     
+                    // Formateamos el texto del horario para la tabla
                     let textoHorario = "No labora";
                     if (horarioHoy && horarioHoy.entrada) {
                         textoHorario = `${horarioHoy.entrada} a ${horarioHoy.salida}`;
+                        // Si es un horario ajustado, agregamos una etiqueta visual aclaratoria
+                        if (esHorarioAjustado) {
+                            textoHorario += `<br><span class="texto-secundario">(Horario Ajustado)</span>`;
+                        }
                     }
 
                     let htmlEscaneos = '<ul class="lista-escaneos">';
@@ -3324,6 +3360,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         claseEstatus = 'etq-verde';
                         textoEstatus = 'En turno';
                     } else if (numEscaneos === 2) {
+                        // Nota: horarioHoy ahora contiene el ajuste (si lo hay), por lo que omitirDescanso se respeta
                         if (emp.tipoJornada === 'continua_sin_descanso' || (horarioHoy && horarioHoy.omitirDescanso)) {
                             claseEstatus = 'etq-azul';
                             textoEstatus = 'Turno completado';
@@ -3336,7 +3373,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const finTurnoDate = new Date(fechaMonitor.getFullYear(), fechaMonitor.getMonth(), fechaMonitor.getDate(), sH, sM, 0);
                                 if (ahora > finTurnoDate) {
                                     claseEstatus = 'etq-azul';
-                                    textoEstatus = 'Turno completado (Faltó escaneo de descanso)';
+                                    textoEstatus = 'Turno completado..';
                                 } else {
                                     claseEstatus = 'etq-naranja';
                                     textoEstatus = 'En descanso';
@@ -3348,7 +3385,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     } else if (numEscaneos === 3) {
                         claseEstatus = 'etq-verde';
-                        textoEstatus = 'Regresó de descanso';
+                        textoEstatus = 'En turno';
                     } else if (numEscaneos >= 4) {
                         claseEstatus = 'etq-azul';
                         textoEstatus = 'Turno completado';
@@ -3369,6 +3406,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (numEscaneos === 0) {
                                 claseEstatus = 'etq-rojo';
                                 textoEstatus = 'Falta Injustificada';
+                                // Al pasar horarioHoy, la falta se calcula con el horario ajustado
                                 window.registrarFaltaAutomatica(emp, horarioHoy, fechaMonitor);
                             } else if (numEscaneos === 1 || numEscaneos === 3) {
                                 claseEstatus = 'etq-rojo';
@@ -3628,6 +3666,239 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("Ocurrió un error al intentar eliminar el registro.");
         }
     };
+
+    // ============================================
+    // 22. GESTIÓN DE AJUSTES DE HORARIO
+    // ============================================
+    const vistaListaAjustes = document.getElementById('vistaListaAjustes');
+    const vistaFormularioAjuste = document.getElementById('vistaFormularioAjuste');
+    const btnMostrarFormAjuste = document.getElementById('btnMostrarFormAjuste');
+    const btnVolverListaAjustes = document.getElementById('btnVolverListaAjustes');
+    const formRegistroAjuste = document.getElementById('formRegistroAjuste');
+    const selectAjusteEmpleado = document.getElementById('ajusteEmpleado');
+    const tablaAjustesBody = document.getElementById('tablaAjustesBody');
+
+    let ajusteEditandoID = null;
+
+    // --- A. Sub-navegación y Carga de Empleados ---
+    if (btnMostrarFormAjuste && btnVolverListaAjustes) {
+        btnMostrarFormAjuste.addEventListener('click', async () => {
+            formRegistroAjuste.reset();
+            ajusteEditandoID = null;
+            document.getElementById('tituloFormAjuste').textContent = "Registrar Ajuste de Horario";
+            formRegistroAjuste.querySelector('button[type="submit"]').textContent = "Guardar Ajuste";
+            
+            vistaListaAjustes.classList.add('hidden');
+            vistaFormularioAjuste.classList.remove('hidden');
+            
+            try {
+                const snapshot = await db.collection('empleados').where('estatus', '==', 'activo').orderBy('nombre', 'asc').get();
+                selectAjusteEmpleado.innerHTML = '<option value="">Seleccione un empleado...</option>';
+                snapshot.forEach(doc => {
+                    const emp = doc.data();
+                    selectAjusteEmpleado.innerHTML += `<option value="${doc.id}" data-nombre="${emp.nombre}">${emp.nombre} (${emp.codigo})</option>`;
+                });
+            } catch (error) {
+                console.error("Error al cargar empleados para ajustes:", error);
+            }
+        });
+
+        btnVolverListaAjustes.addEventListener('click', () => {
+            vistaFormularioAjuste.classList.add('hidden');
+            vistaListaAjustes.classList.remove('hidden');
+        });
+    }
+
+    // --- B. Guardar Ajuste de horario y Validacion---
+    if (formRegistroAjuste) {
+        formRegistroAjuste.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btnSubmit = formRegistroAjuste.querySelector('button[type="submit"]');
+            
+            const empleadoID = selectAjusteEmpleado.value;
+            const fechaStr = document.getElementById('ajusteFecha').value;
+            const entradaStr = document.getElementById('ajusteEntrada').value;
+            const salidaStr = document.getElementById('ajusteSalida').value;
+            const inicioDescansoStr = document.getElementById('ajusteInicioDescanso').value;
+            const minDescanso = parseInt(document.getElementById('ajusteMinDescanso').value) || 0;
+
+            if (entradaStr >= salidaStr) {
+                alert("La hora de salida debe ser mayor a la hora de entrada.");
+                return;
+            }
+
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = "Validando...";
+
+            try {
+                // 1. VALIDACIÓN RN-36: Comparar con el horario base
+                const empDoc = await db.collection('empleados').doc(empleadoID).get();
+                const empData = empDoc.data();
+                
+                const fechaObj = new Date(fechaStr + "T00:00:00");
+                const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+                const diaStr = diasSemana[fechaObj.getDay()];
+
+                // Calcular minutos del horario base para ese día
+                let minutosBase = 0;
+                if (empData.horario && empData.horario[diaStr] && empData.horario[diaStr].entrada) {
+                    const hBase = empData.horario[diaStr];
+                    const [eH, eM] = hBase.entrada.split(':').map(Number);
+                    const [sH, sM] = hBase.salida.split(':').map(Number);
+                    minutosBase = ((sH * 60) + sM) - ((eH * 60) + eM);
+                    if (!hBase.omitirDescanso) {
+                        minutosBase -= (hBase.duracionDescansoMinutos || 0);
+                    }
+                }
+
+                // Calcular minutos del horario ajustado
+                const [aEH, aEM] = entradaStr.split(':').map(Number);
+                const [aSH, aSM] = salidaStr.split(':').map(Number);
+                let minutosAjustados = ((aSH * 60) + aSM) - ((aEH * 60) + aEM);
+                minutosAjustados -= minDescanso;
+
+                // Aplicar la alerta de la RN-36
+                if (minutosAjustados < minutosBase) {
+                    const confirmar = confirm(`El horario ajustado suma ${formatearMinutos(minutosAjustados)}, lo cual es MENOR a su jornada habitual para este día (${formatearMinutos(minutosBase)}).\n\n¿Estás seguro de aplicar este ajuste?`);
+                    if (!confirmar) {
+                        btnSubmit.disabled = false;
+                        btnSubmit.textContent = "Guardar Ajuste";
+                        return; // Abortamos el guardado
+                    }
+                }
+
+                // 2. Guardar en Firestore
+                const opcionSeleccionada = selectAjusteEmpleado.options[selectAjusteEmpleado.selectedIndex];
+                
+                const ajusteData = {
+                    empleadoID: empleadoID,
+                    empleadoNombre: opcionSeleccionada.getAttribute('data-nombre'),
+                    fecha: firebase.firestore.Timestamp.fromDate(fechaObj),
+                    entrada: entradaStr,
+                    salida: salidaStr,
+                    inicioDescanso: inicioDescansoStr,
+                    duracionDescansoMinutos: minDescanso,
+                    motivo: document.getElementById('ajusteMotivo').value.trim(),
+                    autorizantes: document.getElementById('ajusteAutorizantes').value.trim(),
+                    fechaRegistro: firebase.firestore.FieldValue.serverTimestamp(),
+                    registradoPor: auth.currentUser.email
+                };
+
+                if (ajusteEditandoID) {
+                    await db.collection('ajustesHorario').doc(ajusteEditandoID).update(ajusteData);
+                    alert("Ajuste actualizado exitosamente.");
+                } else {
+                    await db.collection('ajustesHorario').add(ajusteData);
+                    alert("Ajuste registrado exitosamente.");
+                }
+
+                btnVolverListaAjustes.click();
+
+            } catch (error) {
+                console.error("Error al guardar ajuste:", error);
+                alert("Ocurrió un error al guardar el registro.");
+            } finally {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = ajusteEditandoID ? "Actualizar Ajuste" : "Guardar Ajuste";
+            }
+        });
+    }
+
+    // --- C. Cargar y Mostrar Ajustes ---
+    window.cargarAjustes = function() {
+        if (!tablaAjustesBody) return;
+
+        db.collection('ajustesHorario').orderBy('fecha', 'desc').onSnapshot((consulta) => {
+            tablaAjustesBody.innerHTML = ''; 
+
+            if (consulta.empty) {
+                tablaAjustesBody.innerHTML = `<tr><td colspan="5" class="table-empty-state">No hay ajustes registrados.</td></tr>`;
+                return;
+            }
+
+            consulta.forEach((doc) => {
+                const ajuste = doc.data();
+                const tr = document.createElement('tr');
+                
+                const fechaTexto = ajuste.fecha.toDate().toLocaleDateString('es-MX');
+                const horarioTexto = `${ajuste.entrada} a ${ajuste.salida} (Descanso: ${ajuste.duracionDescansoMinutos} min)`;
+
+                tr.innerHTML = `
+                    <td><strong>${fechaTexto}</strong></td>
+                    <td>
+                        <strong>${ajuste.empleadoNombre}</strong>
+                        <span class="texto-secundario">${ajuste.empleadoID}</span>
+                    </td>
+                    <td>${horarioTexto}</td>
+                    <td style="font-size: 12px; max-width: 200px;">${ajuste.motivo}</td>
+                    <td>
+                        <button class="btn-icon" onclick="editarAjuste('${doc.id}')" title="Editar">
+                            <img src="recursos/icono-editar.svg" alt="Editar">
+                        </button>
+                        <button class="btn-icon icon-danger" onclick="eliminarAjuste('${doc.id}')" title="Eliminar">
+                            <img src="recursos/icono-baja.svg" alt="Eliminar">
+                        </button>
+                    </td>
+                `;
+                tablaAjustesBody.appendChild(tr);
+            });
+        }, (error) => {
+            console.error("Error al cargar ajustes:", error);
+        });
+    };
+
+    // --- D. Editar y Eliminar Ajustes ---
+    window.editarAjuste = async function(id) {
+        try {
+            const doc = await db.collection('ajustesHorario').doc(id).get();
+            if (!doc.exists) return;
+            const ajuste = doc.data();
+            
+            ajusteEditandoID = id;
+
+            const snapshot = await db.collection('empleados').where('estatus', '==', 'activo').orderBy('nombre', 'asc').get();
+            selectAjusteEmpleado.innerHTML = '<option value="">Seleccione un empleado...</option>';
+            snapshot.forEach(empDoc => {
+                const emp = empDoc.data();
+                selectAjusteEmpleado.innerHTML += `<option value="${empDoc.id}" data-nombre="${emp.nombre}">${emp.nombre} (${emp.codigo})</option>`;
+            });
+
+            document.getElementById('ajusteEmpleado').value = ajuste.empleadoID;
+            
+            const f = ajuste.fecha.toDate();
+            document.getElementById('ajusteFecha').value = `${f.getFullYear()}-${String(f.getMonth()+1).padStart(2,'0')}-${String(f.getDate()).padStart(2,'0')}`;
+            
+            document.getElementById('ajusteEntrada').value = ajuste.entrada;
+            document.getElementById('ajusteSalida').value = ajuste.salida;
+            document.getElementById('ajusteInicioDescanso').value = ajuste.inicioDescanso || "";
+            document.getElementById('ajusteMinDescanso').value = ajuste.duracionDescansoMinutos;
+            document.getElementById('ajusteAutorizantes').value = ajuste.autorizantes || "";
+            document.getElementById('ajusteMotivo').value = ajuste.motivo;
+
+            document.getElementById('tituloFormAjuste').textContent = "Editar Ajuste de Horario";
+            formRegistroAjuste.querySelector('button[type="submit"]').textContent = "Actualizar Ajuste";
+            
+            vistaListaAjustes.classList.add('hidden');
+            vistaFormularioAjuste.classList.remove('hidden');
+
+        } catch (error) {
+            console.error("Error al cargar ajuste:", error);
+        }
+    };
+
+    window.eliminarAjuste = async function(id) {
+        const confirmar = confirm("¿Estás seguro de eliminar este ajuste de horario?\nEl empleado regresará a su horario base para ese día.");
+        if (!confirmar) return;
+
+        try {
+            await db.collection('ajustesHorario').doc(id).delete();
+        } catch (error) {
+            console.error("Error al eliminar ajuste:", error);
+            alert("Ocurrió un error al intentar eliminar el registro.");
+        }
+    };
+
+    configurarBuscador('buscadorAjustes', 'tablaAjustesBody');
 
   //--
 });
