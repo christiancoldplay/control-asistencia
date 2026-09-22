@@ -185,10 +185,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // FUNCIÓN DE ENRUTAMIENTO
     // ============================================
     function redirigirPorRol(rol) {
-        if (rol === 'administrador' || rol === 'super_admin') {
-            window.location.replace('panel.html');
+        if (rol === 'administrador') {
+            window.location.replace('panel.html'); // vista de sucursal
+        } else if (rol === 'super_admin') {
+            window.location.replace('superadmin.html'); // vista corporativa
         } else if (rol === 'recepcionista') {
-            window.location.replace('escaner.html');
+            window.location.replace('escaner.html'); // vista recepcionista
         } else {
             showError('Rol no reconocido.');
             logoutUser();

@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corporativo · Linguatec</title>
+    <link rel="stylesheet" href="css/estilos.css">
+    <link rel="stylesheet" href="css/panel.css">
+</head>
+<body>
+
+    <div class="dashboard-layout">
+        
+        <!-- MENU LATERAL CORPORATIVO -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="recursos/logotipo.webp" alt="Logo Linguatec" class="sidebar-logo">
+            </div>
+            
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-target="seccion-empleados-sa">Directorio (Directores)</button>
+                <button class="nav-item" data-target="seccion-accesos-sa">Accesos al Sistema</button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <span id="userNameDisplay">Cargando...</span>
+                    <small>Super Administrador</small>
+                </div>
+                <button id="btnLogout" class="btn-logout btn-auto btn-centrado">Cerrar Sesión</button>
+            </div>
+        </aside>
+
+        <!-- AREA DE CONTENIDO PRINCIPAL -->
+        <main class="main-content">
+            
+            <!-- SECCION 1: DIRECTORIO DE EMPLEADOS (Solo Directores) -->
+            <section id="seccion-empleados-sa" class="content-section active">
+                <header class="section-header">
+                    <h2>Directorio Nacional de Directores</h2>
+                </header>
+                
+                <!-- VISTA DE LISTA -->
+                <div id="vistaListaEmpleadosSA" class="card-container">
+                    <div class="card-header-flex">
+                        <h3>Directores Registrados</h3>
+                        <div class="header-acciones">
+                            <input type="text" id="buscadorEmpleadosSA" class="buscador-input" placeholder="Buscar director...">
+                            <button id="btnMostrarFormEmpleadoSA" class="btn-primary btn-auto">Registrar Director</button>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Sucursal</th>
+                                    <th>Código</th>
+                                    <th>Nombre</th>
+                                    <th>Estatus Laboral</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaEmpleadosSABody">
+                                <tr>
+                                    <td colspan="5" class="table-empty-state">Cargando directores...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- VISTA DE FORMULARIO -->
+                <div id="vistaFormularioEmpleadoSA" class="card-container hidden">
+                    <div class="card-header-flex">
+                        <h3 id="tituloFormEmpleadoSA">Registrar Nuevo Director</h3>
+                        <button id="btnVolverListaEmpleadosSA" class="btn-logout btn-auto m-0">Volver a la lista</button>
+                    </div>
+                    
+                    <form id="formRegistroEmpleadoSA" class="admin-form">
+                        
+                        <fieldset>
+                            <legend>Datos Personales y Sucursal</legend>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="empSucursal">Sucursal Asignada *</label>
+                                    <select id="empSucursal" required>
+                                        <option value="">Seleccione...</option>
+                                        <option value="Aguascalientes Sur">Aguascalientes Sur</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empCodigo">Código de Empleado *</label>
+                                    <input type="text" id="empCodigo" maxlength="8" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empNombre">Nombre Completo *</label>
+                                    <input type="text" id="empNombre" maxlength="70" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empEmail">Correo Electrónico *</label>
+                                    <input type="email" id="empEmail" maxlength="50" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empTelefono">Teléfono (10 dígitos) *</label>
+                                    <input type="tel" id="empTelefono" pattern="[0-9]{10}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empRFC">RFC *</label>
+                                    <input type="text" id="empRFC" maxlength="13" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empCURP">CURP *</label>
+                                    <input type="text" id="empCURP" maxlength="18" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empIMSS">Número de IMSS *</label>
+                                    <input type="text" id="empIMSS" maxlength="11" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empFoto">Foto del Director *</label>
+                                    <img id="previewFotoSA" src="" alt="Foto actual" class="foto-preview hidden">
+                                    <input type="file" id="empFoto" accept="image/jpeg, image/png, image/webp" required>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <fieldset>
+                            <legend>Datos Bancarios</legend>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="empBanco">Banco</label>
+                                    <select id="empBanco">
+                                        <option value="">Seleccione...</option>
+                                        <option value="BBVA">BBVA</option>
+                                        <option value="Santander">Santander</option>
+                                        <option value="HSBC">HSBC</option>
+                                        <option value="Banamex">Banamex</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empCuenta">Número de Cuenta</label>
+                                    <input type="text" id="empCuenta" maxlength="11">
+                                </div>
+                                <div class="form-group">
+                                    <label for="empClabe">CLABE Interbancaria</label>
+                                    <input type="text" id="empClabe" maxlength="18">
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <fieldset>
+                            <legend>Datos Laborales</legend>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="empDepartamento">Departamento *</label>
+                                    <select id="empDepartamento" class="input-bloqueado" disabled required>
+                                        <option value="Administracion" selected>Administración</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empCargo">Cargo *</label>
+                                    <select id="empCargo" class="input-bloqueado" disabled required>
+                                        <option value="Director Administrativo" selected>Director Administrativo</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empFechaIngreso">Fecha de Ingreso *</label>
+                                    <input type="date" id="empFechaIngreso" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empJornada">Horas Semanales (Jornada) *</label>
+                                    <select id="empJornada" required>
+                                        <option value="">Seleccione...</option>
+                                        <option value="24">24 horas</option>
+                                        <option value="36">36 horas</option>
+                                        <option value="48">48 horas</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="empTipoJornada">Tipo de Jornada *</label>
+                                    <select id="empTipoJornada" required>
+                                        <option value="">Seleccione...</option>
+                                        <option value="partida">Partida</option>
+                                        <option value="continua_con_descanso">Continua con descanso</option>
+                                        <option value="continua_sin_descanso">Continua sin descanso</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <fieldset>
+                            <legend>Horario Personalizado</legend>
+                            <div class="table-responsive">
+                                <table class="horario-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Día</th>
+                                            <th>Entrada</th>
+                                            <th>Salida</th>
+                                            <th>Omitir Descanso</th>
+                                            <th>Inicio Descanso</th>
+                                            <th>Descanso (Min)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tablaHorarioSA">
+                                        <!-- Lunes -->
+                                        <tr>
+                                            <td><label><input type="checkbox" class="dia-checkbox" value="lunes"> Lunes</label></td>
+                                            <td><input type="time" class="hora-entrada" value=""></td>
+                                            <td><input type="time" class="hora-salida" value=""></td>
+                                            <td><input type="checkbox" class="omitir-descanso-cb"></td>
+                                            <td><input type="time" class="hora-descanso" value=""></td>
+                                            <td><input type="number" class="min-descanso" value="0" min="0" step="15"></td>
+                                        </tr>
+                                        <!-- Martes -->
+                                        <tr>
+                                            <td><label><input type="checkbox" class="dia-checkbox" value="martes"> Martes</label></td>
+                                            <td><input type="time" class="hora-entrada" value=""></td>
+                                            <td><input type="time" class="hora-salida" value=""></td>
+                                            <td><input type="checkbox" class="omitir-descanso-cb"></td>
+                                            <td><input type="time" class="hora-descanso" value=""></td>
+                                            <td><input type="number" class="min-descanso" value="0" min="0" step="15"></td>
+                                        </tr>
+                                        <!-- Miércoles -->
+                                        <tr>
+                                            <td><label><input type="checkbox" class="dia-checkbox" value="miercoles"> Miércoles</label></td>
+                                            <td><input type="time" class="hora-entrada" value=""></td>
+                                            <td><input type="time" class="hora-salida" value=""></td>
+                                            <td><input type="checkbox" class="omitir-descanso-cb"></td>
+                                            <td><input type="time" class="hora-descanso" value=""></td>
+                                            <td><input type="number" class="min-descanso" value="0" min="0" step="15"></td>
+                                        </tr>
+                                        <!-- Jueves -->
+                                        <tr>
+                                            <td><label><input type="checkbox" class="dia-checkbox" value="jueves"> Jueves</label></td>
+                                            <td><input type="time" class="hora-entrada" value=""></td>
+                                            <td><input type="time" class="hora-salida" value=""></td>
+                                            <td><input type="checkbox" class="omitir-descanso-cb"></td>
+                                            <td><input type="time" class="hora-descanso" value=""></td>
+                                            <td><input type="number" class="min-descanso" value="0" min="0" step="15"></td>
+                                        </tr>
+                                        <!-- Viernes -->
+                                        <tr>
+                                            <td><label><input type="checkbox" class="dia-checkbox" value="viernes"> Viernes</label></td>
+                                            <td><input type="time" class="hora-entrada" value=""></td>
+                                            <td><input type="time" class="hora-salida" value=""></td>
+                                            <td><input type="checkbox" class="omitir-descanso-cb"></td>
+                                            <td><input type="time" class="hora-descanso" value=""></td>
+                                            <td><input type="number" class="min-descanso" value="0" min="0" step="15"></td>
+                                        </tr>
+                                        <!-- Sábado -->
+                                        <tr>
+                                            <td><label><input type="checkbox" class="dia-checkbox" value="sabado"> Sábado</label></td>
+                                            <td><input type="time" class="hora-entrada" value=""></td>
+                                            <td><input type="time" class="hora-salida" value=""></td>
+                                            <td><input type="checkbox" class="omitir-descanso-cb"></td>
+                                            <td><input type="time" class="hora-descanso" value=""></td>
+                                            <td><input type="number" class="min-descanso" value="0" min="0" step="15"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </fieldset>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary btn-auto">Guardar Director</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- SECCION 2: GESTION DE ACCESOS (USUARIOS) -->
+            <section id="seccion-accesos-sa" class="content-section">
+                <header class="section-header">
+                    <h2>Accesos al Sistema (Directores)</h2>
+                </header>
+                
+                <div class="card-container">
+                    <div class="card-header-flex">
+                        <h3>Cuentas de Administrador</h3>
+                        <div class="header-acciones">
+                            <input type="text" id="buscadorAccesosSA" class="buscador-input" placeholder="Buscar cuenta...">
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Sucursal</th>
+                                    <th>Nombre</th>
+                                    <th>Correo de Acceso</th>
+                                    <th>Estatus</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaAccesosSABody">
+                                <tr>
+                                    <td colspan="5" class="table-empty-state">Cargando accesos...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- MODAL PARA OTORGAR ACCESO AL SISTEMA -->
+    <div id="modalOtorgarAccesoSA" class="modal-fondo hidden">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 class="modal-title">Otorgar Acceso de Administrador</h3>
+                <button id="btnCerrarModalAccesoSA" class="btn-icon" title="Cerrar">
+                    <img src="recursos/icono-cerrar.svg" alt="Cerrar">
+                </button>
+            </div>
+            <div class="modal-body">
+                
+                <div id="vistaFormCrearAccesoSA">
+                    <p class="form-instructions">
+                        Estás a punto de generar credenciales de acceso para <strong id="nombreEmpleadoAccesoSA" class="texto-primario"></strong>.
+                    </p>
+                    <form id="formOtorgarAccesoSA" class="admin-form">
+                        <div class="form-group">
+                            <label for="accEmailSA">Confirmar Correo Institucional *</label>
+                            <input type="email" id="accEmailSA" required>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary btn-auto">Generar Credenciales</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="vistaExitoCrearAccesoSA" class="hidden text-center">
+                    <div class="icono-exito-grande">
+                        <img src="recursos/icono-exito.svg" alt="Éxito">
+                    </div>
+                    <h3 class="titulo-exito">¡Acceso generado con éxito!</h3>
+                    <p class="form-instructions">Copia las credenciales y envíalas al Director:</p>
+                    
+                    <textarea id="textoCredencialesSA" class="usuario-password-temp" rows="7" readonly></textarea>
+                    
+                    <div class="form-actions justify-center">
+                        <button type="button" id="btnCopiarCredencialesSA" class="btn-secundario btn-auto btn-con-icono">
+                            <img src="recursos/icono-copiar.svg" alt="Copiar">
+                            <span id="textoBtnCopiarSA">Copiar Mensaje</span>
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts de Firebase -->
+    <script src="js/config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+    
+    <!-- Lógica de la App -->
+    <script src="js/app.js"></script>
+    <script src="js/superadmin.js"></script>
+</body>
+</html>

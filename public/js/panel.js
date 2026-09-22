@@ -3417,7 +3417,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     textoEstatus = 'Turno completado';
                                 } else if (emp.ultimoEscaneoEsManual) {
                                     claseEstatus = 'etq-azul';
-                                    textoEstatus = 'Turno completado (Salida Manual)';
+                                    textoEstatus = 'Turno completado';
                                 } else {
                                     if (horarioHoy && horarioHoy.salida) {
                                         const [sH, sM] = horarioHoy.salida.split(':').map(Number);
