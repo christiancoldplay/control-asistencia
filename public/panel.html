@@ -81,7 +81,7 @@
                     <h2>Gestión de Empleados</h2>
                 </header>
                 
-                <!-- LISTADO DE EMPLEADOS (Visible por defecto) -->
+                <!-- SUB-VISTA A: LISTADO DE EMPLEADOS (Visible por defecto) -->
                 <div id="vistaListaEmpleados" class="card-container">
                     <div class="card-header-flex">
                         <h3>Directorio de Empleados</h3>
@@ -89,6 +89,12 @@
                             <input type="text" id="buscadorEmpleados" class="buscador-input" placeholder="Buscar empleado...">
                             <button id="btnMostrarFormulario" class="btn-primary btn-auto">+ Nuevo Empleado</button>
                         </div>
+                    </div>
+
+                    <!-- Pestañas de Activos e Inactivos -->
+                    <div class="tabs-contenedor">
+                        <button id="btnTabEmpActivos" class="tab-btn active">Activos</button>
+                        <button id="btnTabEmpInactivos" class="tab-btn">Inactivos (Bajas)</button>
                     </div>
                     
                     <div class="table-responsive">
@@ -349,9 +355,9 @@
                     </div>
                     
                     <!-- Pestañas de Pendientes y Atendidas -->
-                    <div class="tabs-incidencias" style="margin-bottom: 15px; border-bottom: 1px solid var(--color-border); padding-bottom: 10px;">
-                        <button id="btnTabPendientes" class="btn-secundario btn-auto active" style="border-bottom: 3px solid var(--color-primary); border-radius: 0; background: none; border-top: none; border-left: none; border-right: none;">Pendientes de Revisión</button>
-                        <button id="btnTabAtendidas" class="btn-secundario btn-auto" style="border: none; background: none; color: var(--color-text-light);">Atendidas / Historial</button>
+                    <div class="tabs-contenedor">
+                        <button id="btnTabPendientes" class="tab-btn active">Pendientes</button>
+                        <button id="btnTabAtendidas" class="tab-btn">Atendidas</button>
                     </div>
                     
                     <div class="table-responsive">

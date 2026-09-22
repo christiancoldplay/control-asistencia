@@ -518,40 +518,61 @@ document.addEventListener('DOMContentLoaded', () => {
     // ============================================
     // 6. CARGAR Y MOSTRAR EMPLEADOS
     // ============================================
-    const tablaEmpleadosBody = document.getElementById('tablaEmpleadosBody');//variable que referencia al elemento tbody de la tabla donde se muestran los empleados
+    
+    const tablaEmpleadosBody = document.getElementById('tablaEmpleadosBody');
+    let filtroEstatusEmpleados = 'activo'; // Por defecto mostramos los activos
+
+    if (btnTabEmpActivos && btnTabEmpInactivos) {
+        btnTabEmpActivos.addEventListener('click', () => {
+            filtroEstatusEmpleados = 'activo';
+            btnTabEmpActivos.classList.add('active');
+            btnTabEmpInactivos.classList.remove('active');
+            cargarEmpleados(); // Recargar la tabla
+        });
+
+        btnTabEmpInactivos.addEventListener('click', () => {
+            filtroEstatusEmpleados = 'baja';
+            btnTabEmpInactivos.classList.add('active');
+            btnTabEmpActivos.classList.remove('active');
+            cargarEmpleados(); // Recargar la tabla
+        });
+    }
 
     function cargarEmpleados() {
         if (!tablaEmpleadosBody) return;//si no existe la tabla, sale de la funcion
 
         // onSnapshot escucha la base de datos de Firestore en tiempo real
-        db.collection('empleados').orderBy('nombre', 'asc').onSnapshot((querySnapshot) => {
+        db.collection('empleados')
+        .where('estatus', '==', filtroEstatusEmpleados)
+        .onSnapshot((querySnapshot) => {
             
             // Elimina el contenido actual de la tabla
             tablaEmpleadosBody.innerHTML = ''; 
 
             // Si no hay empleados en la base de datos, muestra mensaje y sale de la funcion 
             if (querySnapshot.empty) {
-                tablaEmpleadosBody.innerHTML = `
-                    <tr>
-                        <td colspan="5" class="table-empty-state">No hay empleados registrados aún.</td>
-                    </tr>`;
+                const mensaje = filtroEstatusEmpleados === 'activo' ? 'No hay empleados activos.' : 'No hay empleados inactivos.';
+                tablaEmpleadosBody.innerHTML = `<tr><td colspan="5" class="table-empty-state">${mensaje}</td></tr>`;
                 return;
             }
 
-            // Recorremos cada empleado encontrado en Firestore 
-            // - querySnapshot es un objeto que contiene el estado actual de todos los documentos de la coleccion empleados,
-            //   tiene metodos para recorrer los documentos que contiene.
-            querySnapshot.forEach((doc) => {
-                const emp = doc.data();//doc.data devuelve un objeto con todos los campos del empleado
+            // Guardamos los documentos en un arreglo para ordenarlos alfabeticamente por nombre
+            const empleadosArray = [];
+            querySnapshot.forEach(doc => {
+                empleadosArray.push({ id: doc.id, ...doc.data() });
+            });
+            empleadosArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+            // Recorremos el arreglo ya ordenado
+            empleadosArray.forEach((emp) => {                
                 const tr = document.createElement('tr');// Crea una nueva fila de tabla vacia
 
                 //Extraccion y normalizacion de los datos del empleado
-                const codigo = emp.codigo || doc.id; 
+                const codigo = emp.codigo || emp.id; 
                 const nombre = emp.nombre || 'Sin nombre registrado';
                 const cargo = emp.cargo || 'Sin cargo';  
-                const estatusDb = emp.estatus || 'inactivo'; 
-                const estatusColor = estatusDb === 'activo' ? 'green' : 'red';
-                const estatusTexto = estatusDb.charAt(0).toUpperCase() + estatusDb.slice(1);//hace mayuscula la primer letra de la palabra del estatus
+                const estatusDb = emp.estatus || 'inactivo';
+                const estatusTexto = estatusDb.charAt(0).toUpperCase() + estatusDb.slice(1);// hace mayuscula la primer letra
 
                 // -----------------------------------------------
                 // Logica para mostrar el boton de alta o baja, de acuerdo al estatus del empleado
@@ -560,13 +581,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (estatusDb === 'activo') {
                     // Si el estatus es activo, mostramos el botón rojo (baja) para "Dar de Baja"
                     botonEstadoHTML = `
-                        <button class="btn-icon icon-danger" onclick="darDeBajaEmpleado('${doc.id}')" title="Dar de Baja">
+                        <button class="btn-icon icon-danger" onclick="darDeBajaEmpleado('${emp.id}')" title="Dar de Baja">
                             <img src="recursos/icono-baja.svg" alt="Baja">
                         </button>`;
                 } else {
                     // Si el estatus es inactivo, mostramos el botón verde (alta) para "Dar de Alta"
                     botonEstadoHTML = `
-                        <button class="btn-icon icon-success" onclick="darDeAltaEmpleado('${doc.id}')" title="Reactivar Empleado">
+                        <button class="btn-icon icon-success" onclick="darDeAltaEmpleado('${emp.id}')" title="Reactivar Empleado">
                             <img src="recursos/icono-alta.svg" alt="Alta">
                         </button>`;
                 }
@@ -578,13 +599,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td>${cargo}</td>
                     <td><span class="estatus-${estatusDb}">${estatusTexto}</span></td>
                     <td>
-                        <button class="btn-icon" onclick="editarEmpleado('${doc.id}')" title="Editar">
+                        <button class="btn-icon" onclick="editarEmpleado('${emp.id}')" title="Editar">
                             <img src="recursos/icono-editar.svg" alt="Editar">
                         </button>
-                        <button class="btn-icon" onclick="verDetalles('${doc.id}')" title="Ver Detalles">
+                        <button class="btn-icon" onclick="verDetalles('${emp.id}')" title="Ver Detalles">
                             <img src="recursos/icono-ver.svg" alt="Ver">
                         </button>
-                        <button class="btn-icon" onclick="mostrarCredencial('${doc.id}')" title="Ver Credencial">
+                        <button class="btn-icon" onclick="mostrarCredencial('${emp.id}')" title="Ver Credencial">
                             <img src="recursos/icono-credencial.svg" alt="Credencial">
                         </button>
                         ${botonEstadoHTML} <!-- Aqui se define el color del boton rojo o verde de acuerdo al estatus del empleado (estatusDb) -->
@@ -594,12 +615,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 tablaEmpleadosBody.appendChild(tr);
             });
 
-        }, (error) => {// -- manejo de errores --
+        }, (error) => {
             console.error("Error al cargar empleados:", error);
             tablaEmpleadosBody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="table-empty-state" style="color: red;">
-                        Error al cargar los datos. Verifica tus permisos.
+                    <td colspan="5" class="table-empty-state" estatus-inactivo">
+                        Error al cargar los datos.
                     </td>
                 </tr>`;
         });
