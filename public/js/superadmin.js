@@ -5,7 +5,7 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // ============================================
-    // 1. PROTECCION DE RUTA (Auth Guard)
+    // 1. PROTECCIÓN DE RUTA (Auth Guard Estricto)
     // ============================================
     auth.onAuthStateChanged(async (user) => {
         if (user) {
@@ -13,8 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const doc = await db.collection('usuarios').doc(user.uid).get();
                 if (doc.exists && doc.data().rol === 'super_admin') {
                     document.getElementById('userNameDisplay').textContent = user.email;
-                    cargarEmpleadosSA();
-                    cargarAccesosSA();
+                    cargarDirectores();
+                    cargarEmpleadosSA(); 
                 } else {
                     window.location.replace('index.html');
                 }
@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ============================================
-    // 2. NAVEGACION SPA
+    // 2. NAVEGACIÓN SPA
     // ============================================
     const navItems = document.querySelectorAll('.nav-item');
     const contentSections = document.querySelectorAll('.content-section');
@@ -51,46 +51,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ============================================
-    // 3. LOGICA DEL FORMULARIO DE EMPLEADOS (DIRECTORES)
+    // 3. LÓGICA DE HORARIOS (Para Contratación Externa)
     // ============================================
-    const vistaListaEmpleadosSA = document.getElementById('vistaListaEmpleadosSA');
-    const vistaFormularioEmpleadoSA = document.getElementById('vistaFormularioEmpleadoSA');
-    const btnMostrarFormEmpleadoSA = document.getElementById('btnMostrarFormEmpleadoSA');
-    const btnVolverListaEmpleadosSA = document.getElementById('btnVolverListaEmpleadosSA');
-    const formRegistroEmpleadoSA = document.getElementById('formRegistroEmpleadoSA');
-
-    let empleadoEditandoID = null;
-    let fotoActualURL = "";
-
-    function limpiarFormularioSA() {
-        formRegistroEmpleadoSA.reset();
-        empleadoEditandoID = null;
-        fotoActualURL = "";
-        
-        document.getElementById('empCodigo').readOnly = false;
-        document.getElementById('empCodigo').classList.remove('input-bloqueado');
-        document.getElementById('empFoto').required = true;
-        
-        document.getElementById('previewFotoSA').classList.add('hidden');
-        document.getElementById('previewFotoSA').src = "";
-        
-        document.getElementById('tituloFormEmpleadoSA').textContent = "Registrar Nuevo Director";
-        formRegistroEmpleadoSA.querySelector('button[type="submit"]').textContent = "Guardar Director";
-        
-        vistaFormularioEmpleadoSA.classList.add('hidden');
-        vistaListaEmpleadosSA.classList.remove('hidden');
-    }
-
-    if (btnMostrarFormEmpleadoSA && btnVolverListaEmpleadosSA) {
-        btnMostrarFormEmpleadoSA.addEventListener('click', () => {
-            limpiarFormularioSA();
-            vistaListaEmpleadosSA.classList.add('hidden');
-            vistaFormularioEmpleadoSA.classList.remove('hidden');
-        });
-        btnVolverListaEmpleadosSA.addEventListener('click', limpiarFormularioSA);
-    }
-
-    // --- Logica de Horarios ---
     function controlInputsDescansoSA(checkboxOmitir) {
         const fila = checkboxOmitir.closest('tr');
         const inputInicio = fila.querySelector('.hora-descanso');
@@ -198,204 +160,36 @@ document.addEventListener('DOMContentLoaded', () => {
         return mensajeError;
     }
 
-    // --- GUARDAR EMPLEADO EN FIRESTORE ---
-    if (formRegistroEmpleadoSA) {
-        formRegistroEmpleadoSA.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btnSubmit = formRegistroEmpleadoSA.querySelector('button[type="submit"]');
-            
-            const jornadaSeleccionada = parseFloat(document.getElementById('empJornada').value);
-            const horasCalculadas = calcularHorasTablaSA();
-            if (horasCalculadas !== jornadaSeleccionada) {
-                alert(`ERROR DE HORARIO:\nHas seleccionado ${jornadaSeleccionada} hrs, pero la tabla suma ${horasCalculadas} hrs.`);
-                return; 
-            }
+    // ============================================
+    // 4. CREAR DIRECTOR NUEVO (Contratación Externa)
+    // ============================================
+    const vistaListaDirectores = document.getElementById('vistaListaDirectores');
+    const vistaFormularioDirector = document.getElementById('vistaFormularioDirector');
+    const btnMostrarFormDirector = document.getElementById('btnMostrarFormDirector');
+    const btnVolverListaDirectores = document.getElementById('btnVolverListaDirectores');
+    const formRegistroDirector = document.getElementById('formRegistroDirector');
+    const cajaCredencialesDirector = document.getElementById('cajaCredencialesDirector');
+    const textoCredencialesDirector = document.getElementById('textoCredencialesDirector');
 
-            const tipoJornadaSeleccionada = document.getElementById('empTipoJornada').value;
-            const errorCongruencia = validarCongruenciaJornadaHorarioSA(tipoJornadaSeleccionada);
-            if (errorCongruencia) {
-                alert(errorCongruencia);
-                return; 
-            }
+    function limpiarFormularioDir() {
+        formRegistroDirector.reset();
+        cajaCredencialesDirector.classList.add('hidden');
+        textoCredencialesDirector.value = "";
+        formRegistroDirector.querySelector('button[type="submit"]').classList.remove('hidden');
+    }
 
-            btnSubmit.disabled = true;
-            btnSubmit.textContent = "Guardando...";
-
-            try {
-                const codigo = document.getElementById('empCodigo').value.trim();
-                const fotoFile = document.getElementById('empFoto').files[0];
-                let fotoFinalURL = fotoActualURL; 
-
-                if (fotoFile) {
-                    const storageRef = storage.ref(`empleados/${codigo}/${fotoFile.name}`);
-                    const uploadTask = await storageRef.put(fotoFile);
-                    fotoFinalURL = await uploadTask.ref.getDownloadURL(); 
-                }
-
-                const empleadoData = {
-                    codigo: codigo,
-                    nombre: document.getElementById('empNombre').value.trim(),
-                    email: document.getElementById('empEmail').value.trim(),
-                    telefono: document.getElementById('empTelefono').value.trim(),
-                    rfc: document.getElementById('empRFC').value.trim().toUpperCase(),
-                    curp: document.getElementById('empCURP').value.trim().toUpperCase(),
-                    numIMSS: document.getElementById('empIMSS').value.trim(),
-                    fotoURL: fotoFinalURL, 
-                    banco: document.getElementById('empBanco').value,
-                    numCuenta: document.getElementById('empCuenta').value.trim(),
-                    clabe: document.getElementById('empClabe').value.trim(),
-                    departamento: 'Administracion',
-                    cargo: 'Director Administrativo',
-                    sucursal: document.getElementById('empSucursal').value,
-                    fechaIngreso: document.getElementById('empFechaIngreso').value,
-                    jornada: jornadaSeleccionada,
-                    tipoJornada: tipoJornadaSeleccionada,
-                    horario: obtenerHorarioFormularioSA()
-                };
-
-                if (!empleadoEditandoID) {
-                    empleadoData.estatus = 'activo';
-                    empleadoData.saldoHorasExtra = 0;
-                    empleadoData.saldoPendiente = 0;
-                    empleadoData.qrCodeUrl = ""; 
-                    empleadoData.fechaRegistro = firebase.firestore.FieldValue.serverTimestamp();
-                }
-
-                await db.collection('empleados').doc(codigo).set(empleadoData, { merge: true });
-                alert(empleadoEditandoID ? "Director actualizado exitosamente." : "Director registrado exitosamente.");
-                limpiarFormularioSA();
-
-            } catch (error) {
-                console.error("Error al guardar director:", error);
-                alert("Ocurrió un error al guardar: " + error.message);
-            } finally {
-                btnSubmit.disabled = false;
-                btnSubmit.textContent = empleadoEditandoID ? "Actualizar Director" : "Guardar Director";
-            }
+    if (btnMostrarFormDirector && btnVolverListaDirectores) {
+        btnMostrarFormDirector.addEventListener('click', () => {
+            limpiarFormularioDir();
+            vistaListaDirectores.classList.add('hidden');
+            vistaFormularioDirector.classList.remove('hidden');
+        });
+        btnVolverListaDirectores.addEventListener('click', () => {
+            vistaFormularioDirector.classList.add('hidden');
+            vistaListaDirectores.classList.remove('hidden');
         });
     }
 
-    // ============================================
-    // 4. CARGAR EMPLEADOS (Directores)
-    // ============================================
-    const tablaEmpleadosSABody = document.getElementById('tablaEmpleadosSABody');
-
-    function cargarEmpleadosSA() {
-        if (!tablaEmpleadosSABody) return;
-
-        db.collection('empleados').where('cargo', '==', 'Director Administrativo').onSnapshot((consulta) => {
-            tablaEmpleadosSABody.innerHTML = ''; 
-            if (consulta.empty) {
-                tablaEmpleadosSABody.innerHTML = `<tr><td colspan="5" class="table-empty-state">No hay directores registrados.</td></tr>`;
-                return;
-            }
-
-            const empArray = [];
-            consulta.forEach(doc => empArray.push({ id: doc.id, ...doc.data() }));
-            empArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
-
-            empArray.forEach((emp) => {
-                const tr = document.createElement('tr');
-                const estatusTexto = emp.estatus.charAt(0).toUpperCase() + emp.estatus.slice(1);
-
-                tr.innerHTML = `
-                    <td>${emp.sucursal || 'No asignada'}</td>
-                    <td><strong>${emp.codigo || emp.id}</strong></td>
-                    <td>${emp.nombre}</td>
-                    <td><span class="estatus-${emp.estatus}">${estatusTexto}</span></td>
-                    <td>
-                        <button class="btn-icon" onclick="editarEmpleadoSA('${emp.id}')" title="Editar Datos">
-                            <img src="recursos/icono-editar.svg" alt="Editar">
-                        </button>
-                        <button class="btn-icon icon-success" onclick="abrirModalAccesoSA('${emp.id}', '${emp.nombre}', '${emp.email}', '${emp.sucursal}')" title="Otorgar Acceso al Sistema">
-                            <img src="recursos/icono-llave.svg" alt="Acceso">
-                        </button>
-                    </td>
-                `;
-                tablaEmpleadosSABody.appendChild(tr);
-            });
-        });
-    }
-
-    // --- Editar Empleado ---
-    window.editarEmpleadoSA = async function(id) {
-        try {
-            const doc = await db.collection('empleados').doc(id).get();
-            if (!doc.exists) return;
-            const emp = doc.data();
-
-            empleadoEditandoID = id;
-            fotoActualURL = emp.fotoURL || "";
-
-            document.getElementById('empSucursal').value = emp.sucursal || "";
-            document.getElementById('empCodigo').value = emp.codigo;
-            document.getElementById('empCodigo').readOnly = true;
-            document.getElementById('empCodigo').classList.add('input-bloqueado');
-            
-            document.getElementById('empNombre').value = emp.nombre;
-            document.getElementById('empEmail').value = emp.email;
-            document.getElementById('empTelefono').value = emp.telefono;
-            document.getElementById('empRFC').value = emp.rfc;
-            document.getElementById('empCURP').value = emp.curp;
-            document.getElementById('empIMSS').value = emp.numIMSS;
-            
-            document.getElementById('empBanco').value = emp.banco || "";
-            document.getElementById('empCuenta').value = emp.numCuenta || "";
-            document.getElementById('empClabe').value = emp.clabe || "";
-            
-            document.getElementById('empFechaIngreso').value = emp.fechaIngreso;
-            document.getElementById('empJornada').value = emp.jornada;
-            document.getElementById('empTipoJornada').value = emp.tipoJornada;
-
-            const filas = document.querySelectorAll('#tablaHorarioSA tr');
-            filas.forEach(fila => {
-                const checkbox = fila.querySelector('.dia-checkbox');
-                const dia = checkbox.value;
-                
-                if (emp.horario && emp.horario[dia]) {
-                    checkbox.checked = true;
-                    controlInputsHorarioSA(checkbox);
-                    
-                    fila.querySelector('.hora-entrada').value = emp.horario[dia].entrada;
-                    fila.querySelector('.hora-salida').value = emp.horario[dia].salida;
-                    
-                    const cbOmitir = fila.querySelector('.omitir-descanso-cb');
-                    cbOmitir.checked = emp.horario[dia].omitirDescanso || false;
-                    
-                    fila.querySelector('.hora-descanso').value = emp.horario[dia].inicioDescanso || "";
-                    fila.querySelector('.min-descanso').value = emp.horario[dia].duracionDescansoMinutos || 0;
-                    
-                    controlInputsDescansoSA(cbOmitir);
-                } else {
-                    checkbox.checked = false;
-                    controlInputsHorarioSA(checkbox);
-                }
-            });
-
-            document.getElementById('empFoto').required = false;
-            const previewFoto = document.getElementById('previewFotoSA');
-            if (emp.fotoURL) {
-                previewFoto.src = emp.fotoURL;
-                previewFoto.classList.remove('hidden');
-            } else {
-                previewFoto.classList.add('hidden');
-            }
-
-            document.getElementById('tituloFormEmpleadoSA').textContent = "Editar Director";
-            formRegistroEmpleadoSA.querySelector('button[type="submit"]').textContent = "Actualizar Director";
-            
-            vistaListaEmpleadosSA.classList.add('hidden');
-            vistaFormularioEmpleadoSA.classList.remove('hidden');
-
-        } catch (error) {
-            console.error("Error al cargar para editar:", error);
-            alert("Ocurrió un error al cargar los datos.");
-        }
-    };
-
-    // ============================================
-    // 5. GESTION DE ACCESOS (Crear Usuario)
-    // ============================================
     const appSecundaria = firebase.initializeApp(firebaseConfig, "AppSecundariaSuperAdmin");
     const authSecundario = appSecundaria.auth();
 
@@ -408,56 +202,94 @@ document.addEventListener('DOMContentLoaded', () => {
         return password;
     }
 
-    let empleadoAccesoID = null;
-    let empleadoAccesoSucursal = null;
-    let passwordTemporalGlobal = "";
-    
-    const modalOtorgarAccesoSA = document.getElementById('modalOtorgarAccesoSA');
-    const formOtorgarAccesoSA = document.getElementById('formOtorgarAccesoSA');
-    const vistaFormCrearAccesoSA = document.getElementById('vistaFormCrearAccesoSA');
-    const vistaExitoCrearAccesoSA = document.getElementById('vistaExitoCrearAccesoSA');
-    const textoCredencialesSA = document.getElementById('textoCredencialesSA');
-
-    window.abrirModalAccesoSA = function(id, nombre, email, sucursal) {
-        empleadoAccesoID = id;
-        empleadoAccesoSucursal = sucursal;
-        document.getElementById('nombreEmpleadoAccesoSA').textContent = nombre;
-        document.getElementById('accEmailSA').value = email || ""; 
-        
-        vistaFormCrearAccesoSA.classList.remove('hidden');
-        vistaExitoCrearAccesoSA.classList.add('hidden');
-        modalOtorgarAccesoSA.classList.remove('hidden');
-    };
-
-    document.getElementById('btnCerrarModalAccesoSA')?.addEventListener('click', () => {
-        modalOtorgarAccesoSA.classList.add('hidden');
-        formOtorgarAccesoSA.reset();
-    });
-
-    if (formOtorgarAccesoSA) {
-        formOtorgarAccesoSA.addEventListener('submit', async (e) => {
+    if (formRegistroDirector) {
+        formRegistroDirector.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const btnSubmit = formOtorgarAccesoSA.querySelector('button[type="submit"]');
+            const btnSubmit = formRegistroDirector.querySelector('button[type="submit"]');
+            
+            const jornadaSeleccionada = parseFloat(document.getElementById('dirJornada').value);
+            const horasCalculadas = calcularHorasTablaSA();
+            if (horasCalculadas !== jornadaSeleccionada) {
+                alert(`Error de Horario:\nHas seleccionado ${jornadaSeleccionada} hrs, pero la tabla suma ${horasCalculadas} hrs.`);
+                return; 
+            }
+
+            const tipoJornadaSeleccionada = document.getElementById('dirTipoJornada').value;
+            const errorCongruencia = validarCongruenciaJornadaHorarioSA(tipoJornadaSeleccionada);
+            if (errorCongruencia) {
+                alert(errorCongruencia);
+                return; 
+            }
+
             btnSubmit.disabled = true;
-            btnSubmit.textContent = "Generando...";
+            btnSubmit.textContent = "Creando perfiles...";
 
             try {
-                const email = document.getElementById('accEmailSA').value.trim();
-                const nombre = document.getElementById('nombreEmpleadoAccesoSA').textContent;
-                passwordTemporalGlobal = generarPasswordTemporal();
+                const sucursal = document.getElementById('dirSucursal').value;
+                const codigo = document.getElementById('dirCodigo').value.trim();
+                const nombre = document.getElementById('dirNombre').value.trim();
+                const email = document.getElementById('dirEmail').value.trim();
+                const telefono = document.getElementById('dirTelefono').value.trim();
+                const rfc = document.getElementById('dirRFC').value.trim().toUpperCase();
+                const curp = document.getElementById('dirCURP').value.trim().toUpperCase();
+                const imss = document.getElementById('dirIMSS').value.trim();
 
-                // 1. Crear cuenta en Auth
-                const credencialUsuario = await authSecundario.createUserWithEmailAndPassword(email, passwordTemporalGlobal);
+                const empRef = await db.collection('empleados').doc(codigo).get();
+                if (empRef.exists) {
+                    alert("Error: El Código de Empleado ya está registrado.");
+                    btnSubmit.disabled = false;
+                    btnSubmit.textContent = "Crear Director y Generar Acceso";
+                    return;
+                }
+
+                const fotoFile = document.getElementById('dirFoto').files[0];
+                let fotoURL = "";
+                if (fotoFile) {
+                    const storageRef = storage.ref(`empleados/${codigo}/${fotoFile.name}`);
+                    const uploadTask = await storageRef.put(fotoFile);
+                    fotoURL = await uploadTask.ref.getDownloadURL(); 
+                }
+
+                const passwordTemp = generarPasswordTemporal();
+                const credencialUsuario = await authSecundario.createUserWithEmailAndPassword(email, passwordTemp);
                 const nuevoUID = credencialUsuario.user.uid;
 
-                // 2. Crear el perfil de Usuario en Firestore
-                await db.collection('usuarios').doc(nuevoUID).set({
-                    uid: nuevoUID,
-                    empleadoID: empleadoAccesoID,
+                // Crear Empleado (Identidad Laboral)
+                await db.collection('empleados').doc(codigo).set({
+                    codigo: codigo,
                     nombre: nombre,
                     email: email,
-                    rol: 'administrador', 
-                    sucursal: empleadoAccesoSucursal || 'Aguascalientes Sur',
+                    telefono: telefono,
+                    rfc: rfc,
+                    curp: curp,
+                    numIMSS: imss,
+                    fotoURL: fotoURL,
+                    banco: document.getElementById('empBanco').value || "",
+                    numCuenta: document.getElementById('empCuenta').value.trim() || "",
+                    clabe: document.getElementById('empClabe').value.trim() || "",
+                    sucursal: sucursal,
+                    cargo: 'Director Administrativo',
+                    departamento: 'Administracion',
+                    estatus: 'activo',
+                    fechaIngreso: document.getElementById('dirFechaIngreso').value,
+                    jornada: jornadaSeleccionada,
+                    tipoJornada: tipoJornadaSeleccionada,
+                    horario: obtenerHorarioFormularioSA(),
+                    saldoHorasExtra: 0,
+                    saldoPendiente: 0,
+                    qrCodeUrl: "",
+                    fechaRegistro: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // Crear Usuario (Identidad de Acceso)
+                await db.collection('usuarios').doc(nuevoUID).set({
+                    uid: nuevoUID,
+                    empleadoID: codigo,
+                    nombre: nombre,
+                    email: email,
+                    telefono: telefono,
+                    rol: 'administrador',
+                    sucursal: sucursal,
                     estatus: 'activo',
                     requiereCambioPassword: true,
                     fechaRegistro: firebase.firestore.FieldValue.serverTimestamp(),
@@ -466,86 +298,218 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 await authSecundario.signOut();
 
-                const mensaje = `Bienvenido, ${nombre}.\n\nHas sido designado como Director de la sucursal ${empleadoAccesoSucursal}.\n\nUtiliza estas credenciales para ingresar al panel de control:\nUsuario: ${email}\nContraseña: ${passwordTemporalGlobal}\n\nNota: Deberás cambiar tu contraseña en tu primer inicio de sesión.`;
-                textoCredencialesSA.value = mensaje;
+                const mensaje = `Bienvenido, ${nombre}.\n\nHas sido designado como Director de la sucursal ${sucursal}.\n\nUtiliza estas credenciales para ingresar al sistema:\nUsuario: ${email}\nContraseña: ${passwordTemp}\n\nNota: Deberás cambiar tu contraseña en tu primer inicio de sesión.`;
+                textoCredencialesDirector.value = mensaje;
                 
-                vistaFormCrearAccesoSA.classList.add('hidden');
-                vistaExitoCrearAccesoSA.classList.remove('hidden');
+                cajaCredencialesDirector.classList.remove('hidden');
+                btnSubmit.classList.add('hidden'); 
+
+                alert("Éxito: Director registrado en el sistema.");
 
             } catch (error) {
-                console.error("Error al generar acceso:", error);
+                console.error("Error al crear director:", error);
                 if (error.code === 'auth/email-already-in-use') {
-                    alert("Este correo ya tiene una cuenta de acceso registrada en el sistema.");
+                    alert("Error: Este correo ya tiene una cuenta de acceso registrada.");
                 } else {
-                    alert("Ocurrió un error: " + error.message);
+                    alert("Error: " + error.message);
                 }
-            } finally {
                 btnSubmit.disabled = false;
-                btnSubmit.textContent = "Generar Credenciales";
+                btnSubmit.textContent = "Crear Director y Generar Acceso";
             }
         });
     }
 
-    const btnCopiarCredencialesSA = document.getElementById('btnCopiarCredencialesSA');
-    const textoBtnCopiarSA = document.getElementById('textoBtnCopiarSA');
-    if (btnCopiarCredencialesSA) {
-        btnCopiarCredencialesSA.addEventListener('click', () => {
-            textoCredencialesSA.select();
-            navigator.clipboard.writeText(textoCredencialesSA.value).then(() => {
-                textoBtnCopiarSA.textContent = "¡Copiado!";
-                setTimeout(() => { textoBtnCopiarSA.textContent = "Copiar Mensaje"; }, 2000);
+    const btnCopiarCredencialesDir = document.getElementById('btnCopiarCredencialesDir');
+    const textoBtnCopiarDir = document.getElementById('textoBtnCopiarDir');
+    if (btnCopiarCredencialesDir) {
+        btnCopiarCredencialesDir.addEventListener('click', () => {
+            textoCredencialesDirector.select();
+            navigator.clipboard.writeText(textoCredencialesDirector.value).then(() => {
+                textoBtnCopiarDir.textContent = "¡Copiado!";
+                setTimeout(() => { textoBtnCopiarDir.textContent = "Copiar Mensaje"; }, 2000);
             });
         });
     }
 
     // ============================================
-    // 6. CARGAR USUARIOS (Directores)
+    // 5. CARGAR DIRECTORES (Read)
     // ============================================
-    const tablaAccesosSABody = document.getElementById('tablaAccesosSABody');
+    const tablaDirectoresBody = document.getElementById('tablaDirectoresBody');
 
-    function cargarAccesosSA() {
-        if (!tablaAccesosSABody) return;
+    function cargarDirectores() {
+        if (!tablaDirectoresBody) return;
 
         db.collection('usuarios').where('rol', '==', 'administrador').onSnapshot((consulta) => {
-            tablaAccesosSABody.innerHTML = ''; 
+            tablaDirectoresBody.innerHTML = ''; 
             if (consulta.empty) {
-                tablaAccesosSABody.innerHTML = `<tr><td colspan="5" class="table-empty-state">No hay accesos registrados.</td></tr>`;
+                tablaDirectoresBody.innerHTML = `<tr><td colspan="5" class="table-empty-state">No hay directores registrados.</td></tr>`;
                 return;
             }
 
-            const accesosArray = [];
-            consulta.forEach(doc => accesosArray.push({ id: doc.id, ...doc.data() }));
-            accesosArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
+            const directoresArray = [];
+            consulta.forEach(doc => directoresArray.push({ id: doc.id, ...doc.data() }));
+            directoresArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
-            accesosArray.forEach((acc) => {
+            directoresArray.forEach((dir) => {
                 const tr = document.createElement('tr');
-                const estatusTexto = acc.estatus.charAt(0).toUpperCase() + acc.estatus.slice(1);
+                const estatusTexto = dir.estatus.charAt(0).toUpperCase() + dir.estatus.slice(1);
                 
                 let btnEstatusHTML = '';
-                if (acc.estatus === 'activo') {
-                    btnEstatusHTML = `<button class="btn-icon icon-danger" onclick="cambiarEstatusAccesoSA('${acc.id}', 'inactivo')" title="Deshabilitar Acceso"><img src="recursos/icono-baja.svg" alt="Deshabilitar"></button>`;
+                if (dir.estatus === 'activo') {
+                    btnEstatusHTML = `<button class="btn-icon icon-danger" onclick="cambiarEstatusDirector('${dir.id}', 'inactivo')" title="Deshabilitar Acceso"><img src="recursos/icono-baja.svg" alt="Deshabilitar"></button>`;
                 } else {
-                    btnEstatusHTML = `<button class="btn-icon icon-success" onclick="cambiarEstatusAccesoSA('${acc.id}', 'activo')" title="Habilitar Acceso"><img src="recursos/icono-alta.svg" alt="Habilitar"></button>`;
+                    btnEstatusHTML = `<button class="btn-icon icon-success" onclick="cambiarEstatusDirector('${dir.id}', 'activo')" title="Habilitar Acceso"><img src="recursos/icono-alta.svg" alt="Habilitar"></button>`;
                 }
 
                 tr.innerHTML = `
-                    <td>${acc.sucursal || 'No asignada'}</td>
-                    <td><strong>${acc.nombre}</strong><span class="texto-secundario">${acc.empleadoID}</span></td>
-                    <td>${acc.email}</td>
-                    <td><span class="estatus-${acc.estatus}">${estatusTexto}</span></td>
+                    <td>${dir.sucursal || 'No asignada'}</td>
                     <td>
-                        <button class="btn-icon" onclick="restablecerPasswordSA('${acc.email}')" title="Restablecer Contraseña">
+                        <strong>${dir.nombre}</strong>
+                        <span class="texto-secundario">${dir.empleadoID}</span>
+                    </td>
+                    <td>${dir.email}</td>
+                    <td><span class="estatus-${dir.estatus}">${estatusTexto}</span></td>
+                    <td>
+                        <button class="btn-icon" onclick="restablecerPasswordDirector('${dir.email}')" title="Restablecer Contraseña">
                             <img src="recursos/icono-llave.svg" alt="Restablecer">
                         </button>
                         ${btnEstatusHTML}
                     </td>
                 `;
-                tablaAccesosSABody.appendChild(tr);
+                tablaDirectoresBody.appendChild(tr);
             });
         });
     }
 
-    window.cambiarEstatusAccesoSA = async function(idUsuario, nuevoEstatus) {
+    // ============================================
+    // 6. CARGAR EMPLEADOS (Solo Lectura)
+    // ============================================
+    const tablaEmpleadosSABody = document.getElementById('tablaEmpleadosSABody');
+
+    function cargarEmpleadosSA() {
+        if (!tablaEmpleadosSABody) return;
+
+        db.collection('empleados').where('estatus', '==', 'activo').onSnapshot((consulta) => {
+            tablaEmpleadosSABody.innerHTML = ''; 
+            if (consulta.empty) {
+                tablaEmpleadosSABody.innerHTML = `<tr><td colspan="5" class="table-empty-state">No hay empleados registrados.</td></tr>`;
+                return;
+            }
+
+            const empArray = [];
+            consulta.forEach(doc => empArray.push({ id: doc.id, ...doc.data() }));
+            empArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+            empArray.forEach((emp) => {
+                const tr = document.createElement('tr');
+                
+                let botonAscender = '';
+                if (emp.cargo !== 'Director Administrativo') {
+                    botonAscender = `
+                        <button class="btn-icon icon-success" onclick="abrirModalAscenso('${emp.id}', '${emp.nombre}', '${emp.email}', '${emp.sucursal}')" title="Ascender a Director">
+                            <img src="recursos/icono-alta.svg" alt="Ascender">
+                        </button>
+                    `;
+                }
+
+                tr.innerHTML = `
+                    <td>${emp.sucursal || 'No asignada'}</td>
+                    <td><strong>${emp.codigo || emp.id}</strong></td>
+                    <td>${emp.nombre}</td>
+                    <td>${emp.cargo}</td>
+                    <td>${botonAscender}</td>
+                `;
+                tablaEmpleadosSABody.appendChild(tr);
+            });
+        });
+    }
+
+    // ============================================
+    // 7. LÓGICA DE ASCENSO (Promoción Interna)
+    // ============================================
+    let empleadoAscensoID = null;
+    let empleadoAscensoSucursal = null;
+    const modalAscender = document.getElementById('modalAscender');
+    const formAscenderEmpleado = document.getElementById('formAscenderEmpleado');
+    const cajaCredencialesAscenso = document.getElementById('cajaCredencialesAscenso');
+    const textoCredencialesAscenso = document.getElementById('textoCredencialesAscenso');
+
+    window.abrirModalAscenso = function(id, nombre, email, sucursal) {
+        empleadoAscensoID = id;
+        empleadoAscensoSucursal = sucursal;
+        document.getElementById('nombreEmpleadoAscenso').textContent = nombre;
+        document.getElementById('ascEmail').value = email || ""; 
+        
+        cajaCredencialesAscenso.classList.add('hidden');
+        formAscenderEmpleado.querySelector('button[type="submit"]').classList.remove('hidden');
+        modalAscender.classList.remove('hidden');
+    };
+
+    document.getElementById('btnCerrarModalAscenso')?.addEventListener('click', () => {
+        modalAscender.classList.add('hidden');
+        formAscenderEmpleado.reset();
+    });
+
+    if (formAscenderEmpleado) {
+        formAscenderEmpleado.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btnSubmit = formAscenderEmpleado.querySelector('button[type="submit"]');
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = "Procesando ascenso...";
+
+            try {
+                const email = document.getElementById('ascEmail').value.trim();
+                const nombre = document.getElementById('nombreEmpleadoAscenso').textContent;
+                const passwordTemp = generarPasswordTemporal();
+
+                // 1. Crear cuenta en Auth
+                const credencialUsuario = await authSecundario.createUserWithEmailAndPassword(email, passwordTemp);
+                const nuevoUID = credencialUsuario.user.uid;
+
+                // 2. Actualizar el cargo en la colección Empleados
+                await db.collection('empleados').doc(empleadoAscensoID).update({
+                    cargo: 'Director Administrativo'
+                });
+
+                // 3. Crear el perfil de Usuario
+                await db.collection('usuarios').doc(nuevoUID).set({
+                    uid: nuevoUID,
+                    empleadoID: empleadoAscensoID,
+                    nombre: nombre,
+                    email: email,
+                    rol: 'administrador',
+                    sucursal: empleadoAscensoSucursal || 'Aguascalientes Sur',
+                    estatus: 'activo',
+                    requiereCambioPassword: true,
+                    fechaRegistro: firebase.firestore.FieldValue.serverTimestamp(),
+                    registradoPor: auth.currentUser.email
+                });
+
+                await authSecundario.signOut();
+
+                const mensaje = `¡Felicidades, ${nombre}!\n\nHas sido promovido a Director Administrativo.\n\nUtiliza estas credenciales para ingresar al panel de control:\nUsuario: ${email}\nContraseña: ${passwordTemp}\n\nNota: Deberás cambiar tu contraseña en tu primer inicio de sesión.`;
+                textoCredencialesAscenso.value = mensaje;
+                
+                cajaCredencialesAscenso.classList.remove('hidden');
+                btnSubmit.classList.add('hidden'); 
+
+            } catch (error) {
+                console.error("Error al ascender empleado:", error);
+                if (error.code === 'auth/email-already-in-use') {
+                    alert("Error: Este correo ya tiene una cuenta de acceso registrada.");
+                } else {
+                    alert("Error: " + error.message);
+                }
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = "Confirmar Ascenso";
+            }
+        });
+    }
+
+    // ============================================
+    // 8. ACCIONES DE GESTIÓN (Estatus y Password)
+    // ============================================
+    window.cambiarEstatusDirector = async function(idUsuario, nuevoEstatus) {
         const accion = nuevoEstatus === 'activo' ? 'habilitar' : 'deshabilitar';
         const confirmar = confirm(`¿Estás seguro de ${accion} el acceso de este Director?`);
         if (!confirmar) return;
@@ -553,21 +517,33 @@ document.addEventListener('DOMContentLoaded', () => {
             await db.collection('usuarios').doc(idUsuario).update({ estatus: nuevoEstatus });
         } catch (error) {
             console.error("Error al cambiar estatus:", error);
-            alert("Ocurrió un error al actualizar el acceso.");
+            alert("Error al actualizar el acceso.");
         }
     };
 
-    window.restablecerPasswordSA = async function(emailUsuario) {
+    window.restablecerPasswordDirector = async function(emailUsuario) {
         const confirmar = confirm(`¿Deseas enviar un enlace de recuperación de contraseña a:\n${emailUsuario}?`);
         if (!confirmar) return;
         try {
             await auth.sendPasswordResetEmail(emailUsuario);
-            alert(`Enlace enviado exitosamente a ${emailUsuario}.`);
+            alert(`Éxito: Enlace enviado a ${emailUsuario}.`);
         } catch (error) {
             console.error("Error al enviar correo:", error);
-            alert("Ocurrió un error al intentar enviar el correo.");
+            alert("Error al intentar enviar el correo.");
         }
     };
+
+    const btnCopiarCredencialesAsc = document.getElementById('btnCopiarCredencialesAsc');
+    const textoBtnCopiarAsc = document.getElementById('textoBtnCopiarAsc');
+    if (btnCopiarCredencialesAsc) {
+        btnCopiarCredencialesAsc.addEventListener('click', () => {
+            textoCredencialesAscenso.select();
+            navigator.clipboard.writeText(textoCredencialesAscenso.value).then(() => {
+                textoBtnCopiarAsc.textContent = "¡Copiado!";
+                setTimeout(() => { textoBtnCopiarAsc.textContent = "Copiar Mensaje"; }, 2000);
+            });
+        });
+    }
 
     // Buscadores
     function configurarBuscadorSA(inputId, tablaBodyId) {
@@ -584,7 +560,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+    configurarBuscadorSA('buscadorDirectores', 'tablaDirectoresBody');
     configurarBuscadorSA('buscadorEmpleadosSA', 'tablaEmpleadosSABody');
-    configurarBuscadorSA('buscadorAccesosSA', 'tablaAccesosSABody');
 
 });
+

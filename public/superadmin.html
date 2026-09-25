@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Corporativo · Linguatec</title>
+    <title>Corporativo Linguatec</title>
     <link rel="stylesheet" href="css/estilos.css">
     <link rel="stylesheet" href="css/panel.css">
 </head>
@@ -11,15 +11,15 @@
 
     <div class="dashboard-layout">
         
-        <!-- MENU LATERAL CORPORATIVO -->
+        <!-- MENÚ LATERAL CORPORATIVO -->
         <aside class="sidebar">
             <div class="sidebar-header">
                 <img src="recursos/logotipo.webp" alt="Logo Linguatec" class="sidebar-logo">
             </div>
             
             <nav class="sidebar-nav">
-                <button class="nav-item active" data-target="seccion-empleados-sa">Directorio (Directores)</button>
-                <button class="nav-item" data-target="seccion-accesos-sa">Accesos al Sistema</button>
+                <button class="nav-item active" data-target="seccion-directores">Gestión de Directores</button>
+                <button class="nav-item" data-target="seccion-empleados-sa">Directorio de Empleados</button>
             </nav>
 
             <div class="sidebar-footer">
@@ -31,22 +31,22 @@
             </div>
         </aside>
 
-        <!-- AREA DE CONTENIDO PRINCIPAL -->
+        <!-- ÁREA DE CONTENIDO PRINCIPAL -->
         <main class="main-content">
             
-            <!-- SECCION 1: DIRECTORIO DE EMPLEADOS (Solo Directores) -->
-            <section id="seccion-empleados-sa" class="content-section active">
+            <!-- SECCIÓN 1: GESTIÓN DE DIRECTORES -->
+            <section id="seccion-directores" class="content-section active">
                 <header class="section-header">
-                    <h2>Directorio Nacional de Directores</h2>
+                    <h2>Gestión de Directores de Sucursal</h2>
                 </header>
                 
                 <!-- VISTA DE LISTA -->
-                <div id="vistaListaEmpleadosSA" class="card-container">
+                <div id="vistaListaDirectores" class="card-container">
                     <div class="card-header-flex">
                         <h3>Directores Registrados</h3>
                         <div class="header-acciones">
-                            <input type="text" id="buscadorEmpleadosSA" class="buscador-input" placeholder="Buscar director...">
-                            <button id="btnMostrarFormEmpleadoSA" class="btn-primary btn-auto">Registrar Director</button>
+                            <input type="text" id="buscadorDirectores" class="buscador-input" placeholder="Buscar director...">
+                            <button id="btnMostrarFormDirector" class="btn-primary btn-auto">Registrar Nuevo Director</button>
                         </div>
                     </div>
                     
@@ -55,13 +55,13 @@
                             <thead>
                                 <tr>
                                     <th>Sucursal</th>
-                                    <th>Código</th>
                                     <th>Nombre</th>
-                                    <th>Estatus Laboral</th>
+                                    <th>Correo de Acceso</th>
+                                    <th>Estatus</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>
-                            <tbody id="tablaEmpleadosSABody">
+                            <tbody id="tablaDirectoresBody">
                                 <tr>
                                     <td colspan="5" class="table-empty-state">Cargando directores...</td>
                                 </tr>
@@ -70,81 +70,55 @@
                     </div>
                 </div>
 
-                <!-- VISTA DE FORMULARIO -->
-                <div id="vistaFormularioEmpleadoSA" class="card-container hidden">
+                <!-- VISTA DE FORMULARIO (Contratación Externa) -->
+                <div id="vistaFormularioDirector" class="card-container hidden">
                     <div class="card-header-flex">
-                        <h3 id="tituloFormEmpleadoSA">Registrar Nuevo Director</h3>
-                        <button id="btnVolverListaEmpleadosSA" class="btn-logout btn-auto m-0">Volver a la lista</button>
+                        <h3 id="tituloFormDirector">Registrar Nuevo Director (Contratación Externa)</h3>
+                        <button id="btnVolverListaDirectores" class="btn-logout btn-auto m-0">Volver a la lista</button>
                     </div>
                     
-                    <form id="formRegistroEmpleadoSA" class="admin-form">
-                        
+                    <form id="formRegistroDirector" class="admin-form">
                         <fieldset>
                             <legend>Datos Personales y Sucursal</legend>
                             <div class="form-grid">
                                 <div class="form-group">
-                                    <label for="empSucursal">Sucursal Asignada *</label>
-                                    <select id="empSucursal" required>
+                                    <label for="dirSucursal">Sucursal Asignada *</label>
+                                    <select id="dirSucursal" required>
                                         <option value="">Seleccione...</option>
                                         <option value="Aguascalientes Sur">Aguascalientes Sur</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="empCodigo">Código de Empleado *</label>
-                                    <input type="text" id="empCodigo" maxlength="8" required>
+                                    <label for="dirCodigo">Código de Empleado *</label>
+                                    <input type="text" id="dirCodigo" maxlength="8" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="empNombre">Nombre Completo *</label>
-                                    <input type="text" id="empNombre" maxlength="70" required>
+                                    <label for="dirNombre">Nombre Completo *</label>
+                                    <input type="text" id="dirNombre" maxlength="70" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="empEmail">Correo Electrónico *</label>
-                                    <input type="email" id="empEmail" maxlength="50" required>
+                                    <label for="dirEmail">Correo Institucional (Usuario) *</label>
+                                    <input type="email" id="dirEmail" maxlength="50" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="empTelefono">Teléfono (10 dígitos) *</label>
-                                    <input type="tel" id="empTelefono" pattern="[0-9]{10}" required>
+                                    <label for="dirTelefono">Teléfono (10 dígitos) *</label>
+                                    <input type="tel" id="dirTelefono" pattern="[0-9]{10}" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="empRFC">RFC *</label>
-                                    <input type="text" id="empRFC" maxlength="13" required>
+                                    <label for="dirRFC">RFC *</label>
+                                    <input type="text" id="dirRFC" maxlength="13" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="empCURP">CURP *</label>
-                                    <input type="text" id="empCURP" maxlength="18" required>
+                                    <label for="dirCURP">CURP *</label>
+                                    <input type="text" id="dirCURP" maxlength="18" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="empIMSS">Número de IMSS *</label>
-                                    <input type="text" id="empIMSS" maxlength="11" required>
+                                    <label for="dirIMSS">Número de IMSS *</label>
+                                    <input type="text" id="dirIMSS" maxlength="11" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="empFoto">Foto del Director *</label>
-                                    <img id="previewFotoSA" src="" alt="Foto actual" class="foto-preview hidden">
-                                    <input type="file" id="empFoto" accept="image/jpeg, image/png, image/webp" required>
-                                </div>
-                            </div>
-                        </fieldset>
-
-                        <fieldset>
-                            <legend>Datos Bancarios</legend>
-                            <div class="form-grid">
-                                <div class="form-group">
-                                    <label for="empBanco">Banco</label>
-                                    <select id="empBanco">
-                                        <option value="">Seleccione...</option>
-                                        <option value="BBVA">BBVA</option>
-                                        <option value="Santander">Santander</option>
-                                        <option value="HSBC">HSBC</option>
-                                        <option value="Banamex">Banamex</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
-                                    <label for="empCuenta">Número de Cuenta</label>
-                                    <input type="text" id="empCuenta" maxlength="11">
-                                </div>
-                                <div class="form-group">
-                                    <label for="empClabe">CLABE Interbancaria</label>
-                                    <input type="text" id="empClabe" maxlength="18">
+                                    <label for="dirFoto">Foto del Director *</label>
+                                    <input type="file" id="dirFoto" accept="image/jpeg, image/png, image/webp" required>
                                 </div>
                             </div>
                         </fieldset>
@@ -153,24 +127,24 @@
                             <legend>Datos Laborales</legend>
                             <div class="form-grid">
                                 <div class="form-group">
-                                    <label for="empDepartamento">Departamento *</label>
-                                    <select id="empDepartamento" class="input-bloqueado" disabled required>
+                                    <label for="dirDepartamento">Departamento *</label>
+                                    <select id="dirDepartamento" class="input-bloqueado" disabled required>
                                         <option value="Administracion" selected>Administración</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="empCargo">Cargo *</label>
-                                    <select id="empCargo" class="input-bloqueado" disabled required>
+                                    <label for="dirCargo">Cargo *</label>
+                                    <select id="dirCargo" class="input-bloqueado" disabled required>
                                         <option value="Director Administrativo" selected>Director Administrativo</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="empFechaIngreso">Fecha de Ingreso *</label>
-                                    <input type="date" id="empFechaIngreso" required>
+                                    <label for="dirFechaIngreso">Fecha de Ingreso *</label>
+                                    <input type="date" id="dirFechaIngreso" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="empJornada">Horas Semanales (Jornada) *</label>
-                                    <select id="empJornada" required>
+                                    <label for="dirJornada">Horas Semanales (Jornada) *</label>
+                                    <select id="dirJornada" required>
                                         <option value="">Seleccione...</option>
                                         <option value="24">24 horas</option>
                                         <option value="36">36 horas</option>
@@ -178,8 +152,8 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="empTipoJornada">Tipo de Jornada *</label>
-                                    <select id="empTipoJornada" required>
+                                    <label for="dirTipoJornada">Tipo de Jornada *</label>
+                                    <select id="dirTipoJornada" required>
                                         <option value="">Seleccione...</option>
                                         <option value="partida">Partida</option>
                                         <option value="continua_con_descanso">Continua con descanso</option>
@@ -190,7 +164,7 @@
                         </fieldset>
 
                         <fieldset>
-                            <legend>Horario Personalizado</legend>
+                            <legend>Horario Base</legend>
                             <div class="table-responsive">
                                 <table class="horario-table">
                                     <thead>
@@ -263,24 +237,37 @@
                             </div>
                         </fieldset>
 
+                        <!-- SECCIÓN DE CREDENCIALES (Oculta hasta guardar) -->
+                        <div id="cajaCredencialesDirector" class="form-group mt-20 hidden">
+                            <label>Credenciales de Acceso Generadas</label>
+                            <textarea id="textoCredencialesDirector" class="usuario-password-temp" rows="6" readonly></textarea>
+                            
+                            <div class="form-actions justify-center">
+                                <button type="button" id="btnCopiarCredencialesDir" class="btn-secundario btn-auto btn-con-icono mt-10">
+                                    <img src="recursos/icono-copiar.svg" alt="Copiar">
+                                    <span id="textoBtnCopiarDir">Copiar Mensaje</span>
+                                </button>
+                            </div>
+                        </div>
+
                         <div class="form-actions">
-                            <button type="submit" class="btn-primary btn-auto">Guardar Director</button>
+                            <button type="submit" class="btn-primary btn-auto">Crear Director y Generar Acceso</button>
                         </div>
                     </form>
                 </div>
             </section>
 
-            <!-- SECCION 2: GESTION DE ACCESOS (USUARIOS) -->
-            <section id="seccion-accesos-sa" class="content-section">
+            <!-- SECCIÓN 2: DIRECTORIO DE EMPLEADOS (Solo Lectura y Ascensos) -->
+            <section id="seccion-empleados-sa" class="content-section">
                 <header class="section-header">
-                    <h2>Accesos al Sistema (Directores)</h2>
+                    <h2>Directorio Nacional de Empleados</h2>
                 </header>
                 
                 <div class="card-container">
                     <div class="card-header-flex">
-                        <h3>Cuentas de Administrador</h3>
+                        <h3>Empleados Activos</h3>
                         <div class="header-acciones">
-                            <input type="text" id="buscadorAccesosSA" class="buscador-input" placeholder="Buscar cuenta...">
+                            <input type="text" id="buscadorEmpleadosSA" class="buscador-input" placeholder="Buscar empleado...">
                         </div>
                     </div>
                     
@@ -289,15 +276,15 @@
                             <thead>
                                 <tr>
                                     <th>Sucursal</th>
+                                    <th>Código</th>
                                     <th>Nombre</th>
-                                    <th>Correo de Acceso</th>
-                                    <th>Estatus</th>
+                                    <th>Cargo Actual</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>
-                            <tbody id="tablaAccesosSABody">
+                            <tbody id="tablaEmpleadosSABody">
                                 <tr>
-                                    <td colspan="5" class="table-empty-state">Cargando accesos...</td>
+                                    <td colspan="5" class="table-empty-state">Cargando empleados...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -308,49 +295,41 @@
         </main>
     </div>
 
-    <!-- MODAL PARA OTORGAR ACCESO AL SISTEMA -->
-    <div id="modalOtorgarAccesoSA" class="modal-fondo hidden">
-        <div class="modal-content" style="max-width: 500px;">
+    <!-- MODAL PARA ASCENDER EMPLEADO (Promoción Interna) -->
+    <div id="modalAscender" class="modal-overlay hidden">
+        <div class="modal-content modal-incidencia-ancho">
             <div class="modal-header">
-                <h3 class="modal-title">Otorgar Acceso de Administrador</h3>
-                <button id="btnCerrarModalAccesoSA" class="btn-icon" title="Cerrar">
+                <h3 class="modal-title">Ascender a Director Administrativo</h3>
+                <button id="btnCerrarModalAscenso" class="btn-icon" title="Cerrar">
                     <img src="recursos/icono-cerrar.svg" alt="Cerrar">
                 </button>
             </div>
             <div class="modal-body">
+                <p class="form-instructions">
+                    Estás a punto de promover a <strong id="nombreEmpleadoAscenso" class="texto-primario"></strong>. Su cargo cambiará a "Director Administrativo" y se le generarán credenciales de acceso al sistema.
+                </p>
                 
-                <div id="vistaFormCrearAccesoSA">
-                    <p class="form-instructions">
-                        Estás a punto de generar credenciales de acceso para <strong id="nombreEmpleadoAccesoSA" class="texto-primario"></strong>.
-                    </p>
-                    <form id="formOtorgarAccesoSA" class="admin-form">
-                        <div class="form-group">
-                            <label for="accEmailSA">Confirmar Correo Institucional *</label>
-                            <input type="email" id="accEmailSA" required>
-                        </div>
-                        <div class="form-actions">
-                            <button type="submit" class="btn-primary btn-auto">Generar Credenciales</button>
-                        </div>
-                    </form>
-                </div>
-
-                <div id="vistaExitoCrearAccesoSA" class="hidden text-center">
-                    <div class="icono-exito-grande">
-                        <img src="recursos/icono-exito.svg" alt="Éxito">
+                <form id="formAscenderEmpleado" class="admin-form">
+                    <div class="form-group">
+                        <label for="ascEmail">Confirmar Correo de Acceso *</label>
+                        <input type="email" id="ascEmail" required>
                     </div>
-                    <h3 class="titulo-exito">¡Acceso generado con éxito!</h3>
-                    <p class="form-instructions">Copia las credenciales y envíalas al Director:</p>
-                    
-                    <textarea id="textoCredencialesSA" class="usuario-password-temp" rows="7" readonly></textarea>
-                    
-                    <div class="form-actions justify-center">
-                        <button type="button" id="btnCopiarCredencialesSA" class="btn-secundario btn-auto btn-con-icono">
-                            <img src="recursos/icono-copiar.svg" alt="Copiar">
-                            <span id="textoBtnCopiarSA">Copiar Mensaje</span>
-                        </button>
-                    </div>
-                </div>
 
+                    <div id="cajaCredencialesAscenso" class="form-group mt-20 hidden">
+                        <label>Nuevas Credenciales Generadas</label>
+                        <textarea id="textoCredencialesAscenso" class="usuario-password-temp" rows="6" readonly></textarea>
+                        <div class="form-actions justify-center">
+                            <button type="button" id="btnCopiarCredencialesAsc" class="btn-secundario btn-auto btn-con-icono mt-10">
+                                <img src="recursos/icono-copiar.svg" alt="Copiar">
+                                <span id="textoBtnCopiarAsc">Copiar Mensaje</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary btn-auto">Confirmar Ascenso</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
