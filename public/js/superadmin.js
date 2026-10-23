@@ -210,14 +210,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const jornadaSeleccionada = parseFloat(document.getElementById('dirJornada').value);
             const horasCalculadas = calcularHorasTablaSA();
             if (horasCalculadas !== jornadaSeleccionada) {
-                alert(`Error de Horario:\nHas seleccionado ${jornadaSeleccionada} hrs, pero la tabla suma ${horasCalculadas} hrs.`);
+                mostrarNotificacion(`Error de Horario:\nHas seleccionado ${jornadaSeleccionada} hrs, pero la tabla suma ${horasCalculadas} hrs.`, "error");
                 return; 
             }
 
             const tipoJornadaSeleccionada = document.getElementById('dirTipoJornada').value;
             const errorCongruencia = validarCongruenciaJornadaHorarioSA(tipoJornadaSeleccionada);
             if (errorCongruencia) {
-                alert(errorCongruencia);
+                mostrarNotificacion(errorCongruencia, "error");
                 return; 
             }
 
@@ -236,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const empRef = await db.collection('empleados').doc(codigo).get();
                 if (empRef.exists) {
-                    alert("Error: El Código de Empleado ya está registrado.");
+                    mostrarNotificacion("Error: El Código de Empleado ya está registrado.", "error");
                     btnSubmit.disabled = false;
                     btnSubmit.textContent = "Crear Director y Generar Acceso";
                     return;
@@ -304,14 +304,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 cajaCredencialesDirector.classList.remove('hidden');
                 btnSubmit.classList.add('hidden'); 
 
-                alert("Éxito: Director registrado en el sistema.");
+                mostrarNotificacion("Éxito: Director registrado en el sistema.", "success");
 
             } catch (error) {
                 console.error("Error al crear director:", error);
                 if (error.code === 'auth/email-already-in-use') {
-                    alert("Error: Este correo ya tiene una cuenta de acceso registrada.");
+                    mostrarNotificacion("Error: Este correo ya tiene una cuenta de acceso registrada.", "error");
                 } else {
-                    alert("Error: " + error.message);
+                    mostrarNotificacion("Error: " + error.message, "error");
                 }
                 btnSubmit.disabled = false;
                 btnSubmit.textContent = "Crear Director y Generar Acceso";
@@ -496,9 +496,9 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 console.error("Error al ascender empleado:", error);
                 if (error.code === 'auth/email-already-in-use') {
-                    alert("Error: Este correo ya tiene una cuenta de acceso registrada.");
+                    mostrarNotificacion("Error: Este correo ya tiene una cuenta de acceso registrada.", "error");
                 } else {
-                    alert("Error: " + error.message);
+                    mostrarNotificacion("Error: " + error.message, "error");
                 }
                 btnSubmit.disabled = false;
                 btnSubmit.textContent = "Confirmar Ascenso";
@@ -517,7 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await db.collection('usuarios').doc(idUsuario).update({ estatus: nuevoEstatus });
         } catch (error) {
             console.error("Error al cambiar estatus:", error);
-            alert("Error al actualizar el acceso.");
+            mostrarNotificacion("Error al actualizar el acceso.", "error");
         }
     };
 
@@ -526,10 +526,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!confirmar) return;
         try {
             await auth.sendPasswordResetEmail(emailUsuario);
-            alert(`Éxito: Enlace enviado a ${emailUsuario}.`);
+            mostrarNotificacion(`Éxito: Enlace enviado a ${emailUsuario}.`, "error");
         } catch (error) {
             console.error("Error al enviar correo:", error);
-            alert("Error al intentar enviar el correo.");
+            mostrarNotificacion("Error al intentar enviar el correo.", "error");
         }
     };
 

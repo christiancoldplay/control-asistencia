@@ -80,3 +80,35 @@ function getCurrentUser() {
     return currentUser;
 }
 
+// ============================================
+// SISTEMA DE NOTIFICACIONES TOAST (UX)
+// ============================================
+window.mostrarNotificacion = function(mensaje, tipo = 'success') {
+    // 1. Buscar o crear el contenedor de notificaciones
+    let container = document.getElementById('toast-container-global');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container-global';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    // 2. Crear la notificación
+    const toast = document.createElement('div');
+    toast.className = `toast ${tipo}`;
+    toast.textContent = mensaje;
+
+    // 3. Agregarla a la pantalla
+    container.appendChild(toast);
+
+    // 4. Temporizador para auto-destrucción (3s éxito, 4s error)
+    const duracion = tipo === 'error' ? 4000 : 3000;
+
+    setTimeout(() => {
+        toast.classList.add('fade-out');
+        // Esperar a que termine la animación CSS para borrar el elemento del HTML
+        toast.addEventListener('animationend', () => {
+            toast.remove();
+        });
+    }, duracion);
+};

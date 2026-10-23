@@ -108,7 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const docEmpleado = await db.collection('empleados').doc(textoDecodificado).get();
             
             if (!docEmpleado.exists) {
-                alert("Código QR no válido o empleado no encontrado.");
+                mostrarNotificacion("Código QR no válido o empleado no encontrado.", "error");
                 iniciarCamara(); 
                 return;
             }
@@ -116,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const emp = docEmpleado.data();
             
             if (emp.estatus !== 'activo') {
-                alert(`El empleado ${emp.nombre} está dado de baja o inactivo.`);
+                mostrarNotificacion(`El empleado ${emp.nombre} está dado de baja o inactivo.`, "error");
                 iniciarCamara();
                 return;
             }
@@ -152,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (esDiaFestivo) {
-                alert(`ACCESO DENEGADO:\nHoy es día de descanso obligatorio (${nombreFestivo}).`);
+                mostrarNotificacion(`ACCESO DENEGADO:\nHoy es día de descanso obligatorio (${nombreFestivo}).`, "error");
                 iniciarCamara();
                 return; 
             }
@@ -195,7 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (estaBloqueado) {
-                alert(`ACCESO DENEGADO:\n El empleado tiene un registro activo de ${motivoBloqueo.replace(/_/g, ' ')}.`);
+                mostrarNotificacion(`ACCESO DENEGADO:\n El empleado tiene un registro activo de ${motivoBloqueo.replace(/_/g, ' ')}.`, "error");
                 iniciarCamara();
                 return; // Detenemos el escaneo, no se registra la asistencia
             }
@@ -328,7 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Error al registrar asistencia:", error);
-            alert("Ocurrió un error al conectar con la base de datos.");
+            mostrarNotificacion("Ocurrió un error al conectar con la base de datos.", "error");
             iniciarCamara();
         }
     }

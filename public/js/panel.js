@@ -133,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const maxSize = 3 * 1024 * 1024; //3MB
                 
                 if (file.size > maxSize) {
-                    alert("La imagen es demasiado pesada. El límite es 3MB.\nPor favor, elige otra foto o comprímela.");
+                    mostrarNotificacion("La imagen es demasiado pesada. El límite es 3MB.\nPor favor, elige otra foto o comprímela.", "error");
                     this.value = ''; // Limpia el input para obligar a subir otra imagen
                     return;
                 }
@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Validar el tipo de archivo
                 const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
                 if (!validTypes.includes(file.type)) {
-                    alert("Formato no válido. Solo se permiten imágenes JPG, PNG o WebP.");
+                    mostrarNotificacion("Formato no válido. Solo se permiten imágenes JPG, PNG o WebP.", "error");
                     this.value = ''; // Limpia el input
                 }
             }
@@ -401,7 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 1. Validacion de formatos (Regex) - verificar que los campos cumplan con los formatos esperados
             const errorValidacion = validarDatosEmpleado();
             if (errorValidacion) {
-                alert(`ERROR DE DATOS:\n${errorValidacion}`);
+                mostrarNotificacion(`ERROR DE DATOS:\n${errorValidacion}`, "error");
                 return; 
             }
 
@@ -412,7 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const horasCalculadas = calcularHorasTabla();
             
             if (horasCalculadas !== jornadaSeleccionada) {
-                alert(`ERROR DE HORARIO:\nHas seleccionado una jornada de ${jornadaSeleccionada} hrs semanales, pero el Horario seleccionado en la tabla suma ${horasCalculadas} hrs. Es necesario que coincidan para poder realizar el registro.`);
+                mostrarNotificacion(`ERROR DE HORARIO:\nHas seleccionado una jornada de ${jornadaSeleccionada} hrs semanales, pero el Horario seleccionado en la tabla suma ${horasCalculadas} hrs. Es necesario que coincidan para poder realizar el registro.`, "error");
                 return; 
             }
 
@@ -423,7 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (errorCongruencia) {
                 // Mostramos el error y usamos 'return' para detener el proceso.
                 // Al no usar formRegistroEmpleado.reset(), los datos se quedan en pantalla.
-                alert(errorCongruencia);
+                mostrarNotificacion(errorCongruencia, "error");
                 return; 
             }
 
@@ -434,7 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const errorDuplicado = await verificarDuplicados(codigo, rfc, curp, empleadoEditandoID);
             if (errorDuplicado) {
-                alert(`ERROR DE DUPLICIDAD!:\n${errorDuplicado}`);
+                mostrarNotificacion(`ERROR DE DUPLICIDAD!:\n${errorDuplicado}`, "error");
                 return;
             }
 
@@ -499,14 +499,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 await db.collection('empleados').doc(codigo).set(empleadoData, { merge:true });
 
                 // Operador ternario: muestra mensaje según si es edición (true) o creación (false)
-                alert( empleadoEditandoID ? "Empleado actualizado exitosamente." : "Empleado registrado Exitosamente");
+                mostrarNotificacion( empleadoEditandoID ? "Empleado actualizado exitosamente." : "Empleado registrado Exitosamente", "success");
                                 
                 // Ejecutamos la funcion de limpiar el formulario
                 limpiarFormulario();
 
             } catch (error) { //captura cualquier error en el guardado del empleado en firestore
                 console.error("Error al guardar empleado:", error);
-                alert("Ocurrió un error al guardar: " + error.message);
+                mostrarNotificacion("Ocurrió un error al guardar: " + error.message, "error");
             } finally { //siempre se ejecuta independientemente de errores
                 // desbloquea el boton 'Guardar Empleado" (submit)
                 btnSubmit.disabled = false;
@@ -640,7 +640,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 1. Busca el documento del empleado desde Firestore
             const doc = await db.collection('empleados').doc(id).get();
             if (!doc.exists) {// si no existe el id, sale de la funcion
-                alert("El empleado no existe.");
+                mostrarNotificacion("El empleado no existe.", "error");
                 return;
             }
             
@@ -739,7 +739,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Error al cargar para editar:", error);
-            alert("Ocurrió un error al cargar los datos del empleado.");
+            mostrarNotificacion("Ocurrió un error al cargar los datos del empleado.", "error");
         }
     };
     
@@ -754,7 +754,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Si presionan "Cancelar" o lo deja vacío, se detiene el proceso
         if (motivo === null || motivo.trim() === "") {
-            alert("Operación cancelada. Se requiere un motivo para dar de baja.");
+            mostrarNotificacion("Operación cancelada. Se requiere un motivo para dar de baja.", "error");
             return;
         }
 
@@ -772,11 +772,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 motivoBaja: motivo.trim()
             });
 
-            alert("Empleado dado de baja exitosamente.");
+            mostrarNotificacion("Empleado dado de baja exitosamente.", "success");
 
         } catch (error) {
             console.error("Error al dar de baja:", error);
-            alert("Ocurrió un error al intentar dar de baja al empleado.");
+            mostrarNotificacion("Ocurrió un error al intentar dar de baja al empleado.", "error");
         }
     };
 
@@ -874,7 +874,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Error al ver detalles:", error);
-            alert("Ocurrió un error al cargar los detalles.");
+            mostrarNotificacion("Ocurrió un error al cargar los detalles.", "error");
         }
     };    
 
@@ -911,10 +911,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 motivoBaja: firebase.firestore.FieldValue.delete()
             });
 
-            alert("Empleado reactivado exitosamente con nueva fecha de ingreso.");
+            mostrarNotificacion("Empleado reactivado exitosamente con nueva fecha de ingreso.", "success");
         } catch (error) {
             console.error("Error al reactivar:", error);
-            alert("Ocurrió un error al intentar reactivar al empleado.");
+            mostrarNotificacion("Ocurrió un error al intentar reactivar al empleado.", "error");
         }
     };
 
@@ -926,7 +926,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 1. Consultar los datos del empleado en Firestore
             const documento = await db.collection('empleados').doc(identificadorEmpleado).get();
             if (!documento.exists) {
-                alert("El empleado no existe.");
+                mostrarNotificacion("El empleado no existe.", "error");
                 return;
             }
             
@@ -964,7 +964,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Error al generar credencial:", error);
-            alert("Ocurrió un error al cargar la credencial digital.");
+            mostrarNotificacion("Ocurrió un error al cargar la credencial digital.", "error");
         }
     };
 
@@ -1019,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnDescargarCredencial.disabled = false;
             }).catch(error => {
                 console.error("Error al generar la imagen:", error);
-                alert("Ocurrió un error al intentar descargar la credencial.");
+                mostrarNotificacion("Ocurrió un error al intentar descargar la credencial.", "error");
                 btnDescargarCredencial.innerHTML = textoOriginal;
                 btnDescargarCredencial.disabled = false;
             });
@@ -1141,9 +1141,9 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (error) {
                 console.error("Error al crear usuario:", error);
                 if (error.code === 'auth/email-already-in-use') {
-                    alert("Este empleado ya tiene una cuenta de acceso registrada.");
+                    mostrarNotificacion("Este empleado ya tiene una cuenta de acceso registrada.", "error");
                 } else {
-                    alert("Ocurrió un error: " + error.message);
+                    mostrarNotificacion("Ocurrió un error: " + error.message, "error");
                 }
             } finally {
                 btnSubmit.disabled = false;
@@ -1163,7 +1163,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }, 2000);            
         }).catch(err => {
             console.error("Error al copiar: ", err);
-            alert("No se pudo copiar el texto automáticamente.");
+            mostrarNotificacion("No se pudo copiar el texto automáticamente.", "error");
         });
     });
     }
@@ -1259,7 +1259,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 14. RESTABLECER CONTRASEÑA DE USUARIO
     // ============================================
     window.restablecerPasswordUsuario = async function(emailUsuario) {
-        // Mensaje de confirmación que sirve como documentación para pruebas
+        // Mensaje de confirmación
         const mensajeConfirmacion = `¿Deseas enviar un enlace de recuperación de contraseña a:\n${emailUsuario}?\n\nNota de sistema: Para que esto funcione, el correo registrado debe ser un email real y accesible.`;
         
         const confirmar = confirm(mensajeConfirmacion);
@@ -1269,18 +1269,18 @@ document.addEventListener('DOMContentLoaded', () => {
             // Firebase Auth envia el correo al usuario para gestionar la actualizacion de credenciales de acceso.
             await auth.sendPasswordResetEmail(emailUsuario);
             
-            alert(`Enlace enviado exitosamente a ${emailUsuario}.\n\nEl usuario debe revisar su bandeja de entrada (o carpeta de Spam) para definir su nueva contraseña.`);
+            mostrarNotificacion(`Enlace enviado exitosamente a ${emailUsuario}.\n\nEl usuario debe revisar su bandeja de entrada (o carpeta de Spam) para definir su nueva contraseña.`);
             
         } catch (error) {
             console.error("Error al enviar correo de recuperación:", error);
             
             // Manejo de errores
             if (error.code === 'auth/user-not-found') {
-                alert("Error: No se encontró ningún usuario de acceso con este correo.");
+                mostrarNotificacion("Error: No se encontró ningún usuario de acceso con este correo.", "error");
             } else if (error.code === 'auth/invalid-email') {
-                alert("Error: El formato del correo electrónico no es válido.");
+                mostrarNotificacion("Error: El formato del correo electrónico no es válido.", "error");
             } else {
-                alert("Ocurrió un error al intentar enviar el correo: " + error.message);
+                mostrarNotificacion("Ocurrió un error al intentar enviar el correo: " + error.message, "error");
             }
         }
     };
@@ -1356,7 +1356,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const hoy = new Date(); 
 
             if (fechaInicio > fechaFin) {
-                alert("La Fecha de Inicio no puede ser mayor a la Fecha de Fin.");
+                mostrarNotificacion("La Fecha de Inicio no puede ser mayor a la Fecha de Fin.", "error");
                 return;
             }
 
@@ -1577,7 +1577,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (tipo === 'falta_injustificada') {
                             reporteData[empID].faltas += diasIncidencia; 
                         } else if (tipo === 'retardo_injustificado') {
-                            reporteData[empID].tiempoRetardos += minsAfectadosOriginales; 
+                            reporteData[empID].tiempoRetardos += minsAfectadosDeuda; 
                         } else if (tipo === 'vacaciones') {
                             reporteData[empID].vacaciones += diasIncidencia;
                         } else if (tipo === 'permiso_con_goce' || tipo === 'permiso_sin_goce') {
@@ -1637,7 +1637,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } catch (error) {
                 console.error("Error al generar reporte:", error);
-                alert("Ocurrió un error al calcular los datos.");
+                mostrarNotificacion("Ocurrió un error al calcular los datos.", "error");
             } finally {
                 btnSubmit.disabled = false;
                 btnSubmit.textContent = "Generar Reporte";
@@ -1662,7 +1662,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const fechaFinStr = document.getElementById('filtroFechaFin').value;
             // validamos que las fechas existan para poder continuar, sino sale de la funcion
             if (!fechaInicioStr || !fechaFinStr) {
-                alert("Por favor, elige un rango de fechas, para generar el reporte.");
+                mostrarNotificacion("Por favor, elige un rango de fechas, para generar el reporte.", "error");
                 return;
             }
 
@@ -1936,7 +1936,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Error al cargar detalles del reporte:", error);
-            alert("Ocurrió un error al consultar las incidencias.");
+            mostrarNotificacion("Ocurrió un error al consultar las incidencias.", "error");
         }
     };
 
@@ -2520,7 +2520,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const errorValidacion = validarDatosIncidencia();
             if (errorValidacion) {
-                alert(`ERROR:\n${errorValidacion}`);
+                mostrarNotificacion(`ERROR:\n${errorValidacion}`, "error");
                 return;
             }
 
@@ -2552,7 +2552,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const empDoc = await db.collection('empleados').doc(empleadoID).get();
                     const saldoExtra = empDoc.data().saldoHorasExtra || 0;
                     if (horasAfectadas > saldoExtra) {
-                        alert(`FONDOS INSUFICIENTES:\nEl empleado solo tiene ${formatearMinutos(saldoExtra)} a favor. No puedes compensar ${formatearMinutos(horasAfectadas)}.`);
+                        mostrarNotificacion(`FONDOS INSUFICIENTES:\nEl empleado solo tiene ${formatearMinutos(saldoExtra)} a favor. No puedes compensar ${formatearMinutos(horasAfectadas)}.`, "error");
                         btnSubmit.disabled = false;
                         btnSubmit.textContent = incidenciaEditandoID ? "Actualizar Incidencia" : "Guardar Incidencia";
                         return;
@@ -2628,7 +2628,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
 
-                    alert("Incidencia actualizada exitosamente.");
+                    mostrarNotificacion("Operación exitosa.", "success");
 
                 } else {
 
@@ -2695,14 +2695,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Guardar la nueva incidencia
                     await db.collection('incidencias').add(incidenciaData);
-                    alert("Incidencia registrada exitosamente.");
+                    mostrarNotificacion("Incidencia registrada exitosamente.", "success");
                 }
                                 
                 btnVolverListaIncidencias.click(); 
 
             } catch (error) {
                 console.error("Error al guardar incidencia:", error);
-                alert("Ocurrió un error al guardar la incidencia.");
+                mostrarNotificacion("Ocurrió un error al guardar.", "error");
             } finally {
                 btnSubmit.disabled = false;
                 btnSubmit.textContent = incidenciaEditandoID ? "Actualizar Incidencia" : "Guardar Incidencia";
@@ -3043,7 +3043,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Error al cargar incidencia para editar:", error);
-            alert("Ocurrió un error al cargar los datos de la incidencia.");
+            mostrarNotificacion("Ocurrió un error al cargar los datos de la incidencia.", "error");
         }
     };
 
@@ -3120,11 +3120,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 3. Eliminar el documento de Firestore
             await db.collection('incidencias').doc(id).delete();
-            alert("Incidencia eliminada y saldos revertidos correctamente.");
+            mostrarNotificacion("Incidencia eliminada y saldos revertidos correctamente.", "success");
 
         } catch (error) {
             console.error("Error al eliminar incidencia:", error);
-            alert("Ocurrió un error al intentar eliminar el registro.");
+            mostrarNotificacion("Ocurrió un error al intentar eliminar el registro.", "error");
         }
     };
 
@@ -3208,7 +3208,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Error al ver detalles de incidencia:", error);
-            alert("Ocurrió un error al cargar los detalles.");
+            mostrarNotificacion("Ocurrió un error al cargar los detalles.", "error");
         }
     };
 
@@ -3220,20 +3220,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ===========================================================
+    // ============================================
     // 19. MONITOR DE ASISTENCIA DIARIO (Tiempo Real e Histórico)
-    // ===========================================================
+    // ============================================
     const tablaMonitorBody = document.getElementById('tablaMonitorBody');
     const fechaMonitorHoy = document.getElementById('fechaMonitorHoy');
     const inputFechaMonitor = document.getElementById('inputFechaMonitor');
     
-    let monitorSnapshotUnsubscribe = null; // Variable para apagar el escuchador de Firebase    
+    let monitorSnapshotUnsubscribe = null; 
 
-    // --- FUNCION PRINCIPAL: Cargar el Monitor ---
     window.cargarMonitorDiario = async function(fechaSeleccionadaStr = null) {
         if (!tablaMonitorBody) return;
 
-        const ahora = new Date(); // La hora REAL en este momento
+        const ahora = new Date(); 
         let fechaMonitor;
         
         // 1. Determinar qué fecha vamos a consultar
@@ -3247,7 +3246,6 @@ document.addEventListener('DOMContentLoaded', () => {
             fechaSeleccionadaStr = `${year}-${month}-${day}`;
         }
 
-        // Sincronizar el input visual
         if (inputFechaMonitor && inputFechaMonitor.value !== fechaSeleccionadaStr) {
             inputFechaMonitor.value = fechaSeleccionadaStr;
         }
@@ -3266,11 +3264,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 empleadosData[doc.id] = { ...doc.data(), escaneos: [] };
             });
         } catch (error) {
-            console.error("Error al cargar empleados:", error);
+            console.error("Error al cargar empleados para el monitor:", error);
             return;
         }
 
-        // --- Consultar Ajustes de Horario para la fecha seleccionada ---
+        // 3. Consultar Ajustes de Horario
         const ajustesMap = {};
         try {
             const snapshotAjustes = await db.collection('ajustesHorario')
@@ -3280,18 +3278,43 @@ document.addEventListener('DOMContentLoaded', () => {
             
             snapshotAjustes.forEach(doc => {
                 const ajuste = doc.data();
-                ajustesMap[ajuste.empleadoID] = ajuste; // Guardamos el ajuste vinculado al ID del empleado
+                ajustesMap[ajuste.empleadoID] = ajuste; 
             });
         } catch (error) {
             console.error("Error al cargar ajustes de horario:", error);
         }
 
-        // 3. APAGAR EL ESCUCHADOR ANTERIOR (Si existe)
+        // 4. Consultar Incidencias del Día
+        const incidenciasMonitorMap = {};
+        try {
+            const snapshotIncidencias = await db.collection('incidencias')
+                .where('fechaInicio', '>=', firebase.firestore.Timestamp.fromDate(inicioDia))
+                .where('fechaInicio', '<=', firebase.firestore.Timestamp.fromDate(finDia))
+                .get();
+            
+            snapshotIncidencias.forEach(doc => {
+                const inc = doc.data();
+                incidenciasMonitorMap[inc.empleadoID] = inc; 
+            });
+        } catch (error) {
+            console.error("Error al cargar incidencias para el monitor:", error);
+        }
+
+        // 5. Consultar Días de Descanso Obligatorio
+        const descansosArray = [];
+        try {
+            const snapshotDescansos = await db.collection('diasDescansoObligatorio').get();
+            snapshotDescansos.forEach(doc => descansosArray.push(doc.data()));
+        } catch (error) {
+            console.error("Error al cargar descansos:", error);
+        }
+
+        // 6. APAGAR EL ESCUCHADOR ANTERIOR
         if (monitorSnapshotUnsubscribe) {
             monitorSnapshotUnsubscribe();
         }
         
-        // 4. Encender el nuevo escuchador para la fecha seleccionada
+        // 7. Encender el nuevo escuchador en TIEMPO REAL
         monitorSnapshotUnsubscribe = db.collection('registrosAsistencia')
             .where('fechaHora', '>=', firebase.firestore.Timestamp.fromDate(inicioDia))
             .where('fechaHora', '<=', firebase.firestore.Timestamp.fromDate(finDia))
@@ -3308,7 +3331,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (empleadosData[registro.empleadoID]) {
                         empleadosData[registro.empleadoID].escaneos.push(registro.fechaHora.toDate());
                         
-                        // Si el registro fue hecho a mano, encendemos la bandera
                         if (registro.fuente === 'registro_manual') {
                             empleadosData[registro.empleadoID].ultimoEscaneoEsManual = true;
                         } else {
@@ -3324,77 +3346,68 @@ document.addEventListener('DOMContentLoaded', () => {
                 const empleadosArray = Object.entries(empleadosData).map(([id, datos]) => ({ id, ...datos }));
                 empleadosArray.sort((a, b) => a.nombre.localeCompare(b.nombre));
 
-            // --- Consultar Días de Descanso Obligatorio ---
-            // Lo hacemos fuera del ciclo para no saturar la base de datos
-            db.collection('diasDescansoObligatorio').get().then(snapshotDescansos => {
-                    const descansosArray = [];
-                    snapshotDescansos.forEach(doc => descansosArray.push(doc.data()));
-
                 empleadosArray.forEach(emp => {
-                    // Si la fecha del monitor de registro diario es menor a su contratacion, sale de la funcion
                     const fechaIngresoEmp = new Date(emp.fechaIngreso + "T00:00:00");
                     if (fechaMonitor < fechaIngresoEmp) return; 
 
-                    // 1. Evaluar si hoy es Día de Descanso para este empleado
+                    // Evaluar Días de Descanso
                     let esDescansoObligatorio = false;
                     let nombreDescanso = "";
 
                     for (const desc of descansosArray) {
-                            const startDesc = desc.fechaInicio.toDate();
-                            startDesc.setHours(0,0,0,0);
-                            const endDesc = desc.fechaFin ? desc.fechaFin.toDate() : new Date(startDesc);
-                            endDesc.setHours(23,59,59,999);
-                            
-                            if (fechaMonitor >= startDesc && fechaMonitor <= endDesc) {
-                                const [y, m, day] = emp.fechaIngreso.split('-').map(Number);
-                                const fechaIngresoObj = new Date(y, m - 1, day);
-                                const unAnoDespues = new Date(fechaIngresoObj);
-                                unAnoDespues.setFullYear(unAnoDespues.getFullYear() + 1);
-                                const tieneUnAno = fechaMonitor >= unAnoDespues;
+                        const startDesc = desc.fechaInicio.toDate();
+                        startDesc.setHours(0,0,0,0);
+                        const endDesc = desc.fechaFin ? desc.fechaFin.toDate() : new Date(startDesc);
+                        endDesc.setHours(23,59,59,999);
+                        
+                        if (fechaMonitor >= startDesc && fechaMonitor <= endDesc) {
+                            const [y, m, day] = emp.fechaIngreso.split('-').map(Number);
+                            const fechaIngresoObj = new Date(y, m - 1, day);
+                            const unAnoDespues = new Date(fechaIngresoObj);
+                            unAnoDespues.setFullYear(unAnoDespues.getFullYear() + 1);
+                            const tieneUnAno = fechaMonitor >= unAnoDespues;
 
-                                if (desc.criterioAplicacion === 'todos' ||
-                                   (desc.criterioAplicacion === 'antiguedad_mayor_1' && tieneUnAno) ||
-                                   (desc.criterioAplicacion === 'antiguedad_menor_1' && !tieneUnAno)) {
-                                    esDescansoObligatorio = true;
-                                    nombreDescanso = desc.descripcion;
-                                    break;
-                                }
+                            if (desc.criterioAplicacion === 'todos' ||
+                               (desc.criterioAplicacion === 'antiguedad_mayor_1' && tieneUnAno) ||
+                               (desc.criterioAplicacion === 'antiguedad_menor_1' && !tieneUnAno)) {
+                                esDescansoObligatorio = true;
+                                nombreDescanso = desc.descripcion;
+                                break;
                             }
                         }
+                    }
 
-                    // --- Logica de prioridad de horario (Ajuste vs Base) ---
+                    // Prioridad de Horario (Ajuste vs Base)
                     let horarioHoy = null;
                     let esHorarioAjustado = false;
 
-                    // Verificamos si existe un ajuste temporal para este empleado en el día consultado
                     if (typeof ajustesMap !== 'undefined' && ajustesMap[emp.id]) {
                         horarioHoy = ajustesMap[emp.id];
                         esHorarioAjustado = true;
-                    } 
-                    // Si no hay ajuste, tomamos su horario base normal
-                    else if (emp.horario && emp.horario[diaActualStr]) {
+                    } else if (emp.horario && emp.horario[diaActualStr]) {
                         horarioHoy = emp.horario[diaActualStr];
                     }                    
                     
-                    // Si no trabaja hoy, no es festivo y no tiene escaneos, lo ignoramos
-                    if (!horarioHoy && emp.escaneos.length === 0) return;
+                    const incidenciaHoy = incidenciasMonitorMap[emp.id];
+                    const numEscaneos = emp.escaneos.length;
+
+                    // Si no trabaja, no tiene escaneos, no es festivo y no tiene incidencias, lo ignoramos
+                    if (!horarioHoy && numEscaneos === 0 && !esDescansoObligatorio && !incidenciaHoy) return;
 
                     const tr = document.createElement('tr');
                     
-                    // Formateamos el texto del horario para la tabla
                     let textoHorario = "No labora";
                     if (horarioHoy && horarioHoy.entrada) {
                         textoHorario = `${horarioHoy.entrada} a ${horarioHoy.salida}`;
-                        // Si es un horario ajustado, agregamos una etiqueta visual aclaratoria
                         if (esHorarioAjustado) {
                             textoHorario += `<br><span class="texto-secundario">(Horario Ajustado)</span>`;
                         }
                     } else if (esDescansoObligatorio) {
-                            textoHorario = `<span class="texto-secundario">Día Festivo</span>`;
+                        textoHorario = `<span class="texto-secundario">Día Festivo</span>`;
                     }
 
                     let htmlEscaneos = '<ul class="lista-escaneos">';
-                    if (emp.escaneos.length === 0) {
+                    if (numEscaneos === 0) {
                         htmlEscaneos += '<li>Sin registros</li>';
                     } else {
                         emp.escaneos.forEach((fecha, index) => {
@@ -3405,91 +3418,103 @@ document.addEventListener('DOMContentLoaded', () => {
                     htmlEscaneos += '</ul>';
 
                     let claseEstatus = 'etq-gris';
-                    let textoEstatus = 'No hay registro de asistencia';
-                    const numEscaneos = emp.escaneos.length;
+                    let textoEstatus = 'No ha llegado';
                     let botonAccion = `
-                            <button class="btn-icon" title="Registrar Incidencia Manual">
-                                <img src="recursos/icono-editar.svg" alt="Registrar">
-                            </button>
-                        `;                    
+                        <button class="btn-icon" title="Registrar Incidencia Manual">
+                            <img src="recursos/icono-editar.svg" alt="Registrar">
+                        </button>
+                    `;                    
                                         
-                    // 3. LÓGICA DE ESTATUS VISUAL
-                        if (esDescansoObligatorio) {
-                            if (numEscaneos === 0) {
-                                claseEstatus = 'etq-gris';
-                                textoEstatus = `Descanso: ${nombreDescanso}`;
-                            } else {
-                                claseEstatus = 'etq-morado';
-                                textoEstatus = 'Asistencia en Día Libre';
-                            }
-                        } else if (!horarioHoy) {
-                            if (numEscaneos > 0) {
-                                claseEstatus = 'etq-morado';
-                                textoEstatus = 'Asistencia en Día Libre';
-                            }
+                    // --- LÓGICA DE ESTATUS VISUAL (CON PERMISOS PARCIALES) ---
+                    const incidenciasDiaCompleto = ['vacaciones', 'suspension', 'incapacidad', 'falta_justificada', 'falta_injustificada'];
+                    const esPermiso = incidenciaHoy && ['permiso_con_goce', 'permiso_sin_goce'].includes(incidenciaHoy.tipoIncidencia);
+
+                    // Sobrescribimos si es de día completo, O si es un permiso y NO tiene escaneos (asumimos permiso de día completo)
+                    if (incidenciaHoy && (incidenciasDiaCompleto.includes(incidenciaHoy.tipoIncidencia) || (esPermiso && numEscaneos === 0))) {
+                        claseEstatus = 'etq-azul'; 
+                        textoEstatus = incidenciaHoy.tipoIncidencia.replace(/_/g, ' ').toUpperCase();
+                        
+                        if (incidenciaHoy.tipoIncidencia === 'falta_injustificada') {
+                            claseEstatus = 'etq-rojo';
+                        }
+                    } 
+                    // Si es un retardo, salida anticipada, o un permiso parcial (con escaneos), aplicamos la lógica normal
+                    else if (esDescansoObligatorio) {
+                        if (numEscaneos === 0) {
+                            claseEstatus = 'etq-gris';
+                            textoEstatus = `Descanso: ${nombreDescanso}`;
                         } else {
-                            // Lógica normal de turnos
-                            if (numEscaneos === 1) {
-                                claseEstatus = 'etq-verde';
-                                textoEstatus = 'En turno';
-                            } else if (numEscaneos === 2) {
-                                if (emp.tipoJornada === 'continua_sin_descanso' || (horarioHoy && horarioHoy.omitirDescanso)) {
-                                    claseEstatus = 'etq-azul';
-                                    textoEstatus = 'Turno completado';
-                                } else if (emp.ultimoEscaneoEsManual) {
-                                    claseEstatus = 'etq-azul';
-                                    textoEstatus = 'Turno completado';
-                                } else {
-                                    if (horarioHoy && horarioHoy.salida) {
-                                        const [sH, sM] = horarioHoy.salida.split(':').map(Number);
-                                        const finTurnoDate = new Date(fechaMonitor.getFullYear(), fechaMonitor.getMonth(), fechaMonitor.getDate(), sH, sM, 0);
-                                        if (ahora > finTurnoDate) {
-                                            claseEstatus = 'etq-azul';
-                                            textoEstatus = 'Turno completado (Faltó escaneo de descanso)';
-                                        } else {
-                                            claseEstatus = 'etq-naranja';
-                                            textoEstatus = 'En descanso';
-                                        }
+                            claseEstatus = 'etq-morado';
+                            textoEstatus = 'Asistencia en Día Festivo';
+                        }
+                    } else if (!horarioHoy) {
+                        if (numEscaneos > 0) {
+                            claseEstatus = 'etq-morado';
+                            textoEstatus = 'Asistencia en Día Libre';
+                        }
+                    } else {
+                        // Lógica normal de turnos
+                        if (numEscaneos === 1) {
+                            claseEstatus = 'etq-verde';
+                            textoEstatus = 'En turno';
+                        } else if (numEscaneos === 2) {
+                            if (emp.tipoJornada === 'continua_sin_descanso' || (horarioHoy && horarioHoy.omitirDescanso)) {
+                                claseEstatus = 'etq-azul';
+                                textoEstatus = 'Turno completado';
+                            } else if (emp.ultimoEscaneoEsManual) {
+                                claseEstatus = 'etq-azul';
+                                textoEstatus = 'Turno completado (Salida Manual)';
+                            } else {
+                                if (horarioHoy && horarioHoy.salida) {
+                                    const [sH, sM] = horarioHoy.salida.split(':').map(Number);
+                                    const finTurnoDate = new Date(fechaMonitor.getFullYear(), fechaMonitor.getMonth(), fechaMonitor.getDate(), sH, sM, 0);
+                                    if (ahora > finTurnoDate) {
+                                        claseEstatus = 'etq-azul';
+                                        textoEstatus = 'Turno completado (Faltó escaneo de descanso)';
                                     } else {
                                         claseEstatus = 'etq-naranja';
                                         textoEstatus = 'En descanso';
                                     }
+                                } else {
+                                    claseEstatus = 'etq-naranja';
+                                    textoEstatus = 'En descanso';
                                 }
-                            } else if (numEscaneos === 3) {
-                                claseEstatus = 'etq-verde';
-                                textoEstatus = 'Regresó de descanso';
-                            } else if (numEscaneos >= 4) {
-                                claseEstatus = 'etq-azul';
-                                textoEstatus = 'Turno completado';
                             }
+                        } else if (numEscaneos === 3) {
+                            claseEstatus = 'etq-verde';
+                            textoEstatus = 'Regresó de descanso';
+                        } else if (numEscaneos >= 4) {
+                            claseEstatus = 'etq-azul';
+                            textoEstatus = 'Turno completado';
+                        }
+                
+                        // Evaluación de faltas automaticas y salidas omitidas
+                        if (horarioHoy && horarioHoy.salida) {
+                            const [salHora, salMin] = horarioHoy.salida.split(':').map(Number);
+                            const horaSalidaDate = new Date(fechaMonitor.getFullYear(), fechaMonitor.getMonth(), fechaMonitor.getDate(), salHora, salMin, 0);
                     
-                    
-                            // Evaluación de faltas automaticas y salidas omitidas
-                            if (horarioHoy && horarioHoy.salida) {
-                                const [salHora, salMin] = horarioHoy.salida.split(':').map(Number);
-                                const horaSalidaDate = new Date(fechaMonitor.getFullYear(), fechaMonitor.getMonth(), fechaMonitor.getDate(), salHora, salMin, 0);
-                        
-                        if (ahora > horaSalidaDate) {
-                            if (numEscaneos === 0) {
-                                claseEstatus = 'etq-rojo';
-                                textoEstatus = 'Falta Injustificada';
-                                // Al pasar horarioHoy, la falta se calcula con el horario ajustado
-                                window.registrarFaltaAutomatica(emp, horarioHoy, fechaMonitor);
-                            } else if (numEscaneos === 1 || numEscaneos === 3) {
-                                claseEstatus = 'etq-rojo';
-                                textoEstatus = 'Falta registro de salida';
-                                
-                                // Pasamos la hora oficial al modal para poder calcular la salida anticipada
-                                botonAccion = `
-                                    <button class="btn-secundario btn-auto btn-sm" onclick="abrirModalSalidaManual('${emp.id}', '${emp.nombre}', '${fechaSeleccionadaStr}', '${horarioHoy.salida}')">
-                                        Registrar Salida
-                                    </button>
-                                `;
+                            if (ahora > horaSalidaDate) {
+                                if (numEscaneos === 0) {
+                                    claseEstatus = 'etq-rojo';
+                                    textoEstatus = 'Falta Injustificada';
+                                    
+                                    // Solo generamos la falta si la función global existe
+                                    if (typeof window.registrarFaltaAutomatica === 'function') {
+                                        window.registrarFaltaAutomatica(emp, horarioHoy, fechaMonitor);
+                                    }
+                                } else if (numEscaneos === 1 || numEscaneos === 3) {
+                                    claseEstatus = 'etq-rojo';
+                                    textoEstatus = 'Falta registro de salida';
+                                    
+                                    botonAccion = `
+                                        <button class="btn-secundario btn-auto btn-sm" onclick="abrirModalSalidaManual('${emp.id}', '${emp.nombre}', '${fechaSeleccionadaStr}', '${horarioHoy.salida}')">
+                                            Registrar Salida
+                                        </button>
+                                    `;
+                                }
                             }
                         }
                     }
-                }
-                
 
                     tr.innerHTML = `
                         <td>
@@ -3503,24 +3528,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     `;
                     tablaMonitorBody.appendChild(tr);
                 });
-            
-            });
-
             }, (error) => {
                 console.error("Error en el monitor:", error);
             });
-    };    
+    }; 
 
-    // Evento para cuando la Directora cambia la fecha en el input
     if (inputFechaMonitor) {
         inputFechaMonitor.addEventListener('change', (e) => {
-            if (e.target.value) {
-                cargarMonitorDiario(e.target.value);
-            }
+            if (e.target.value) cargarMonitorDiario(e.target.value);
         });
     }
 
-    configurarBuscador('buscadorMonitor', 'tablaMonitorBody');
 
     // ============================================
     // 20. REGISTRO MANUAL DE SALIDA 
@@ -3539,6 +3557,15 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('nombreSalidaManual').textContent = nombreEmpleado;
         document.getElementById('modalSalidaManual').classList.remove('hidden');
     };
+
+    // --- ¡ESTO FALTABA! Evento para cerrar el modal con la 'X' ---
+    const btnCerrarModalSalida = document.getElementById('btnCerrarModalSalida');
+    if (btnCerrarModalSalida) {
+        btnCerrarModalSalida.addEventListener('click', () => {
+            document.getElementById('modalSalidaManual').classList.add('hidden');
+            document.getElementById('formSalidaManual').reset();
+        });
+    }
 
     const formSalidaManual = document.getElementById('formSalidaManual');
     if (formSalidaManual) {
@@ -3592,14 +3619,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     registradoPor: correoAdmin 
                 });
 
-                alert("Salida registrada exitosamente.");
+                mostrarNotificacion("Salida registrada exitosamente.", "success");
 
                 document.getElementById('modalSalidaManual').classList.add('hidden');
                 document.getElementById('formSalidaManual').reset();
                 
             } catch (error) {
                 console.error("Error al registrar salida manual:", error);
-                alert("Ocurrió un error al guardar el registro.");
+                mostrarNotificacion("Ocurrió un error al guardar el registro.", "error");
             } finally {
                 btnSubmit.disabled = false;
                 btnSubmit.textContent = "Registrar Salida";
@@ -3642,7 +3669,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Validación de fechas lógicas
             if (fechaFinStr && new Date(fechaFinStr) < new Date(fechaInicioStr)) {
-                alert("La Fecha de Fin no puede ser anterior a la Fecha de Inicio.");
+                mostrarNotificacion("La Fecha de Fin no puede ser anterior a la Fecha de Inicio.", "error");
                 return;
             }
 
@@ -3665,12 +3692,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 await db.collection('diasDescansoObligatorio').add(descansoData);
                 
-                alert("Día de descanso registrado exitosamente.");
+                mostrarNotificacion("Día de descanso registrado exitosamente.", "success");
                 btnVolverListaDescansos.click();
 
             } catch (error) {
                 console.error("Error al guardar descanso:", error);
-                alert("Ocurrió un error al guardar el registro.");
+                mostrarNotificacion("Ocurrió un error al guardar el registro.", "error");
             } finally {
                 btnSubmit.disabled = false;
                 btnSubmit.textContent = "Guardar Descanso";
@@ -3734,7 +3761,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await db.collection('diasDescansoObligatorio').doc(id).delete();
         } catch (error) {
             console.error("Error al eliminar descanso:", error);
-            alert("Ocurrió un error al intentar eliminar el registro.");
+            mostrarNotificacion("Ocurrió un error al intentar eliminar el registro.", "error");
         }
     };
 
@@ -3794,7 +3821,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const minDescanso = parseInt(document.getElementById('ajusteMinDescanso').value) || 0;
 
             if (entradaStr >= salidaStr) {
-                alert("La hora de salida debe ser mayor a la hora de entrada.");
+                mostrarNotificacion("La hora de salida debe ser mayor a la hora de entrada.", "error");
                 return;
             }
 
@@ -3857,17 +3884,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (ajusteEditandoID) {
                     await db.collection('ajustesHorario').doc(ajusteEditandoID).update(ajusteData);
-                    alert("Ajuste actualizado exitosamente.");
+                    mostrarNotificacion("Ajuste actualizado exitosamente.", "success");
                 } else {
                     await db.collection('ajustesHorario').add(ajusteData);
-                    alert("Ajuste registrado exitosamente.");
+                    mostrarNotificacion("Ajuste registrado exitosamente.", "success");
                 }
 
                 btnVolverListaAjustes.click();
 
             } catch (error) {
                 console.error("Error al guardar ajuste:", error);
-                alert("Ocurrió un error al guardar el registro.");
+                mostrarNotificacion("Ocurrió un error al guardar el registro.", "error");
             } finally {
                 btnSubmit.disabled = false;
                 btnSubmit.textContent = ajusteEditandoID ? "Actualizar Ajuste" : "Guardar Ajuste";
@@ -3965,7 +3992,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await db.collection('ajustesHorario').doc(id).delete();
         } catch (error) {
             console.error("Error al eliminar ajuste:", error);
-            alert("Ocurrió un error al intentar eliminar el registro.");
+            mostrarNotificacion("Ocurrió un error al intentar eliminar el registro.", "error");
         }
     };
 
