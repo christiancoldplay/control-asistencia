@@ -1168,7 +1168,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     }
 
-    // Cargar y mostrar la tabla de Usuarios
+    // G. Cargar y mostrar la tabla de Usuarios
     window.cargarUsuarios = function() {
         if (!tablaUsuariosBody) return;
 
@@ -1184,32 +1184,68 @@ document.addEventListener('DOMContentLoaded', () => {
                 const usuario = doc.data();
                 //filtro de seguridad para evitar que el administrador vea al usuario super-administrador en la tabla de usuarios
                 if (usuario.rol === 'super_admin') return;
-
                 const tr = document.createElement('tr');
+                
                 const estatusTexto = usuario.estatus.charAt(0).toUpperCase() + usuario.estatus.slice(1);
+
+                // 1. Botón de Restablecer Contraseña (Siempre visible)
+                let botonesAccion = `
+                    <button class="btn-icon" onclick="restablecerPasswordUsuario('${usuario.email}')" title="Restablecer Contraseña">
+                        <img src="recursos/icono-llave.svg" alt="Restablecer">
+                    </button>
+                `;
+
+                // 2. LÓGICA DE SEGURIDAD: Botón de Habilitar/Deshabilitar
+                // Solo mostramos este botón si el usuario NO es administrador
+                if (usuario.rol !== 'administrador') {
+                    if (usuario.estatus === 'activo') {
+                        botonesAccion += `
+                            <button class="btn-icon icon-danger" onclick="cambiarEstatusUsuario('${doc.id}', 'inactivo')" title="Deshabilitar Acceso">
+                                <img src="recursos/icono-baja.svg" alt="Deshabilitar">
+                            </button>`;
+                    } else {
+                        botonesAccion += `
+                            <button class="btn-icon icon-success" onclick="cambiarEstatusUsuario('${doc.id}', 'activo')" title="Habilitar Acceso">
+                                <img src="recursos/icono-alta.svg" alt="Habilitar">
+                            </button>`;
+                    }
+                }
 
                 tr.innerHTML = `
                     <td><strong>${usuario.nombre}</strong></td>
                     <td>${usuario.email}</td>
-                    <td>${usuario.rol}</td>
+                    <td style="text-transform: capitalize;">${usuario.rol.replace(/_/g, ' ')}</td>
                     <td><span class="estatus-${usuario.estatus}">${estatusTexto}</span></td>
-                    <td>
-                        <!-- Botones para editar (pendiente de programar) -->
-                        <button class="btn-icon" title="Editar">
-                            <img src="recursos/icono-editar.svg" alt="Editar">
-                        </button>
-                        <!-- Boton para restablecer contrasena -->
-                        <button class="btn-icon" onclick="restablecerPasswordUsuario('${usuario.email}')" title="Restablecer Contraseña">
-                            <img src="recursos/icono-llave.svg" alt="Restablecer">
-                        </button>
-
-                    </td>
+                    <td>${botonesAccion}</td>
                 `;
                 tablaUsuariosBody.appendChild(tr);
             });
         }, (error) => {
             console.error("Error al cargar usuarios:", error);
         });
+    };
+
+    // H. Habilitar o Deshabilitar Acceso de Usuario
+    window.cambiarEstatusUsuario = async function(idUsuario, nuevoEstatus) {
+        const accion = nuevoEstatus === 'activo' ? 'habilitar' : 'deshabilitar';
+        const confirmar = confirm(`¿Estás seguro de ${accion} el acceso al sistema para este usuario?`);
+        
+        if (!confirmar) return;
+
+        try {
+            await db.collection('usuarios').doc(idUsuario).update({ 
+                estatus: nuevoEstatus 
+            });
+            
+            if (typeof window.mostrarNotificacion === 'function') {
+                window.mostrarNotificacion(`Acceso ${nuevoEstatus === 'activo' ? 'habilitado' : 'deshabilitado'} exitosamente.`, "success");
+            }
+        } catch (error) {
+            console.error("Error al cambiar estatus de usuario:", error);
+            if (typeof window.mostrarNotificacion === 'function') {
+                window.mostrarNotificacion("Ocurrió un error al actualizar el acceso.", "error");
+            }
+        }
     };
 
     // ============================================
